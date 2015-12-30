@@ -4,7 +4,7 @@
     <img src="http://azuredeploy.net/deploybutton.png"/>
 </a>
 
-<a href="http://armviz.io/#/?load=https://raw.githubusercontent.com/azure/azure-quickstart-templates/master/101-dtl-create-vmtemplate/azuredeploy.json" target="_blank">
+<a href="http://armviz.io/#/?load=https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/101-dtl-create-vmtemplate/azuredeploy.json" target="_blank">
   <img src="http://armviz.io/visualizebutton.png"/>
 </a>
 

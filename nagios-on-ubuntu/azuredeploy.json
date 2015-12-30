@@ -90,7 +90,7 @@
     "vnetID": "[resourceId('Microsoft.Network/virtualNetworks',parameters('virtualNetworkName'))]",
     "subnetRef": "[concat(variables('vnetID'),'/subnets/',parameters('subnetName'))]",
     "computerNamePrefix": "NagiosCoreSrv",
-    "scriptUrl": "https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/nagios-on-ubuntu/",
+    "scriptUrl": "https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/nagios-on-ubuntu/",
     "tshirtSizeSmall": {
       "numberOfInstances": 1,
       "vmSize": "Standard_A1"

@@ -6,7 +6,7 @@ This Microsoft Azure template deploys a single C++ Ethereum client which will co
 
 Once your deployment is complete you will be able to connect to the Ethereum public network.
 
-![Ethereum-Azure](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/ethereum-cpp-on-ubuntu/images/eth.jpg)
+![Ethereum-Azure](https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/ethereum-cpp-on-ubuntu/images/eth.jpg)
 
 # Template Parameters
 When you launch the installation of the VM, you need to specify the following parameters:

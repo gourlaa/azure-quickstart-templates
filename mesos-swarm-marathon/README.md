@@ -16,7 +16,7 @@ Once your cluster has been created you will have a resource group containing 3 p
 
 The following image is an example of a cluster with 1 jumpbox, 3 masters, and 3 agents:
 
-![Image of Mesos cluster on azure](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/mesos-swarm-marathon/images/mesos.png)
+![Image of Mesos cluster on azure](https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/mesos-swarm-marathon/images/mesos.png)
 
 You can see the following parts:
 
@@ -62,11 +62,11 @@ Before running the walkthrough ensure you have chosen "true" for "marathonEnable
 
  2. then click browse all, followed by "resource groups", and choose your resource group
 
- ![Image of resource groups in portal](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/mesos-swarm-marathon/images/portal-resourcegroups.png)
+ ![Image of resource groups in portal](https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/mesos-swarm-marathon/images/portal-resourcegroups.png)
 
  3. then expand your resources, and copy the dns names of your jumpbox (if chosen), and your NAT public ip addresses.
 
- ![Image of public ip addresses in portal](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/mesos-swarm-marathon/images/portal-publicipaddresses.png)
+ ![Image of public ip addresses in portal](https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/mesos-swarm-marathon/images/portal-publicipaddresses.png)
 
 2. Connect to your cluster
  1. linux jumpbox - start a VNC to the jumpbox using instructions https://github.com/Azure/azure-quickstart-templates/tree/master/ubuntu-desktop.  The jumpbox takes an hour to configure.  If the desktop is not ready, you can tail /var/log/azure/cluster-bootstrap.log to watch installation.
@@ -81,15 +81,15 @@ Before running the walkthrough ensure you have chosen "true" for "marathonEnable
 4. Browse Mesos:
  1. scroll down the page and notice your resources of CPU and memory.  These are your agents
 
- ![Image of Mesos cluster on azure](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/mesos-swarm-marathon/images/mesos-webui.png)
+ ![Image of Mesos cluster on azure](https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/mesos-swarm-marathon/images/mesos-webui.png)
 
  2. On top of page, click frameworks and notice your Marathon and Swarm frameworks
 
- ![Image of Mesos cluster frameworks on azure](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/mesos-swarm-marathon/images/mesos-frameworks.png)
+ ![Image of Mesos cluster frameworks on azure](https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/mesos-swarm-marathon/images/mesos-frameworks.png)
 
  3. On top of page, click agents and you can see your agents.  On windows or linux jumpbox you can also drill down into the slave and see its logs.
 
- ![Image of Mesos agents on azure](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/mesos-swarm-marathon/images/mesos-agents.png)
+ ![Image of Mesos agents on azure](https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/mesos-swarm-marathon/images/mesos-agents.png)
 
 5. browse and explore Marathon UI http://c1master1:8080 (or if using tunnel http://localhost:8080 )
 
@@ -99,19 +99,19 @@ Before running the walkthrough ensure you have chosen "true" for "marathonEnable
  3. type "/bin/bash -c "for i in {1..5}; do echo MyFirstApp $i; sleep 1; done" for the command
  4. scroll to bottom and click create
 
- ![Image of Marathon new app dialog](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/mesos-swarm-marathon/images/marathon-newapp.png)
+ ![Image of Marathon new app dialog](https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/mesos-swarm-marathon/images/marathon-newapp.png)
 
 7. you will notice the new app change state from not running to running
 
- ![Image of the new application status](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/mesos-swarm-marathon/images/marathon-newapp-status.png)
+ ![Image of the new application status](https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/mesos-swarm-marathon/images/marathon-newapp-status.png)
 
 8. browse back to Mesos http://c1master1:5050.  You will notice the running tasks and the completed tasks.  Click on the host of the completed tasks and also look at the sandbox.
 
- ![Image of Mesos completed tasks](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/mesos-swarm-marathon/images/mesos-completed-tasks.png)
+ ![Image of Mesos completed tasks](https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/mesos-swarm-marathon/images/mesos-completed-tasks.png)
 
 9. All nodes are running docker, so to run a docker app browse back to Marathon http://c1master1:8080, and create an application to run "sudo docker run hello-world".  Once running browse back to Mesos in a similar fashion to the above instructions to see that it has run:
 
- ![Image of setting up docker application in Marathon](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/mesos-swarm-marathon/images/marathon-docker.png)
+ ![Image of setting up docker application in Marathon](https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/mesos-swarm-marathon/images/marathon-docker.png)
 
 # Chronos Walkthrough
 
@@ -119,7 +119,7 @@ Before running this walkthrough ensure you have created a cluster choosing "true
 
 1. from the jumpbox browse to http://c1master1:4400/, and verify you see the Marathon Web UI:
 
- ![Image of Chronos UI](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/mesos-swarm-marathon/images/chronos-ui.png)
+ ![Image of Chronos UI](https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/mesos-swarm-marathon/images/chronos-ui.png)
 
 2. Click Add and fill in the following details:
  1. Name - "MyFirstApp"
@@ -127,7 +127,7 @@ Before running this walkthrough ensure you have created a cluster choosing "true
  3. Owner, and Owner Name - you can put random information Here
  4. Schedule - Set to P"T1M" in order to run this every minute
 
- ![Image of adding a new scheduled operation in Chronos](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/mesos-swarm-marathon/images/chronos.png)
+ ![Image of adding a new scheduled operation in Chronos](https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/mesos-swarm-marathon/images/chronos.png)
 
 3. Click Create
 
@@ -135,7 +135,7 @@ Before running this walkthrough ensure you have created a cluster choosing "true
 
 5. All nodes are running docker, so to run a docker app browse back to Chronos http://c1master1:4400, and create an application to run "sudo docker run hello-world".  Once running browse back to Mesos in a similar fashion to the above instructions to verify that it has run:
 
- ![Image of setting up docker application in Marathon](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/mesos-swarm-marathon/images/chronos-docker.png)
+ ![Image of setting up docker application in Marathon](https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/mesos-swarm-marathon/images/chronos-docker.png)
 
 # Swarm Walkthrough
 
@@ -143,7 +143,7 @@ Before running this walkthrough ensure you have created a cluster choosing "true
 
 1. from the jumpbox browse to http://c1master1:5050/#/frameworks, and verify Swarm is working:
 
- ![Image of the Swarm framework in Mesos](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/mesos-swarm-marathon/images/swarm-framework.png)
+ ![Image of the Swarm framework in Mesos](https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/mesos-swarm-marathon/images/swarm-framework.png)
 
 2. SSH to the master from the jumpbox or hitting port 2211 on the public IP
 
@@ -157,7 +157,7 @@ Before running this walkthrough ensure you have created a cluster choosing "true
 
 7. Browse to http://c1master1:5050/, and see the "hello-world" process that has just completed.  Browse to Log:
 
- ![Image of docker hello world using Swarm](https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/mesos-swarm-marathon/images/completed-hello-world.png)
+ ![Image of docker hello world using Swarm](https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/mesos-swarm-marathon/images/completed-hello-world.png)
 
 # Sample Workloads
 

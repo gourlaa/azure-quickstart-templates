@@ -444,9 +444,9 @@
                         "typeHandlerVersion": "1.4",
                         "settings": {
                             "fileUris": [ 
-                                "https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/201-vm-winrm-lb-windows/ConfigureWinRM.ps1",
-                                "https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/201-vm-winrm-lb-windows/makecert.exe",
-                                "https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/201-vm-winrm-lb-windows/winrmconf.cmd"
+                                "https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/201-vm-winrm-lb-windows/ConfigureWinRM.ps1",
+                                "https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/201-vm-winrm-lb-windows/makecert.exe",
+                                "https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/201-vm-winrm-lb-windows/winrmconf.cmd"
                             ],
                             "commandToExecute": "[concat('powershell -ExecutionPolicy Unrestricted -file ConfigureWinRM.ps1 ',variables('hostDNSNameScriptArgument'))]"
                         }
@@ -522,9 +522,9 @@
                         "typeHandlerVersion": "1.4",
                         "settings": {
                             "fileUris": [ 
-                                "https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/201-vm-winrm-lb-windows/ConfigureWinRM.ps1",
-                                "https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/201-vm-winrm-lb-windows/makecert.exe",
-                                "https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/201-vm-winrm-lb-windows/winrmconf.cmd"
+                                "https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/201-vm-winrm-lb-windows/ConfigureWinRM.ps1",
+                                "https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/201-vm-winrm-lb-windows/makecert.exe",
+                                "https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/201-vm-winrm-lb-windows/winrmconf.cmd"
                             ],
                             "commandToExecute": "[concat('powershell -ExecutionPolicy Unrestricted -file ConfigureWinRM.ps1 ',variables('hostDNSNameScriptArgument'))]"
                         }

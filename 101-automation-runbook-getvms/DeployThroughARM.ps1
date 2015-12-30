@@ -21,7 +21,7 @@ $Params = @{
 	"password" = "MyPassword"
 }
 
-$TemplateURI = "https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/101-automation-runbook-getvms/azuredeploy.json"
+$TemplateURI = "https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/101-automation-runbook-getvms/azuredeploy.json"
 
 New-AzureResourceGroupDeployment -TemplateParameterObject $Params -ResourceGroupName "MyResourceGroup" -TemplateUri $TemplateURI
 

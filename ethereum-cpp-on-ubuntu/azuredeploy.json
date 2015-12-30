@@ -193,7 +193,7 @@
         "autoUpgradeMinorVersion": true,
         "settings": {
           "fileUris": [
-            "https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/ethereum-cpp-on-ubuntu/configure-eth-cpp.sh"
+            "https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/ethereum-cpp-on-ubuntu/configure-eth-cpp.sh"
           ],
           "commandToExecute": "[concat('sh configure-eth-cpp.sh ', parameters('adminUsername'))]"
         }

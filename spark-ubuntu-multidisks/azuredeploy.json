@@ -70,7 +70,7 @@
     }
   },
   "variables": {
-    "templateBaseUrl": "https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/spark-ubuntu-multidisks/",
+    "templateBaseUrl": "https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/spark-ubuntu-multidisks/",
     "sharedTemplateUrl": "[concat(variables('templateBaseUrl'), 'shared-resources.json')]",
     "tshirtSizeSmall": {
       "vmSize": "Standard_A1",
@@ -150,7 +150,7 @@
     "osSettings": {
       "scripts": [
         "[concat(variables('templateBaseUrl'), 'spark-cluster-install.sh')]",
-        "https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/shared_scripts/ubuntu/vm-disk-utils-0.1.sh"
+        "https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/shared_scripts/ubuntu/vm-disk-utils-0.1.sh"
       ],
       "imageReference": {
         "publisher": "Canonical",

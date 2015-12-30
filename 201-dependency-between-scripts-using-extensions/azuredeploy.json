@@ -57,7 +57,7 @@
     "nicName": "myVMNic",
     "vnetID": "[resourceId('Microsoft.Network/virtualNetworks',variables('virtualNetworkName'))]",
     "subnet1Ref": "[concat(variables('vnetID'),'/subnets/',variables('subnet1Name'))]",
-    "installMongoTemplateurl": "https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/201-dependency-between-scripts-using-extensions/install-mongo.json"
+    "installMongoTemplateurl": "https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/201-dependency-between-scripts-using-extensions/install-mongo.json"
   },
   "resources": [
     {
@@ -191,7 +191,7 @@
         "typeHandlerVersion": "1.2",
         "settings": {
           "fileUris": [
-            "https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/201-dependency-between-scripts-using-extensions/mongo-configure-ubuntu.sh"
+            "https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/201-dependency-between-scripts-using-extensions/mongo-configure-ubuntu.sh"
           ],
           "commandToExecute": "sh mongo-configure-ubuntu.sh"
         }

@@ -94,7 +94,7 @@
     },
     "spiderUri": {
       "type": "string",
-      "defaultValue": "https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/scrapy-on-ubuntu/myspider.py",
+      "defaultValue": "https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/scrapy-on-ubuntu/myspider.py",
       "metadata": {
         "description": "Uri of the spider source"
       }
@@ -237,7 +237,7 @@
         "typeHandlerVersion": "1.2",
         "settings": {
           "fileUris": [
-            "https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/scrapy-on-ubuntu/scrapy-install-ubuntu.sh",
+            "https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/scrapy-on-ubuntu/scrapy-install-ubuntu.sh",
             "[parameters('spiderUri')]"
           ],
           "commandToExecute": "[concat('sh scrapy-install-ubuntu.sh ', parameters('spiderName'))]"

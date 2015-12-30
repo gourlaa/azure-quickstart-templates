@@ -298,7 +298,7 @@
             "description":"Base URL for Marketplace",
             "artifactsBaseUrl":""
          },
-         "defaultValue":"https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/sharepoint-server-farm-ha"
+         "defaultValue":"https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/sharepoint-server-farm-ha"
       }
    },
    "variables":{
@@ -457,7 +457,7 @@
          "setupLBsUrl":"[concat(parameters('baseUrl'),'/setupLBs.json')]",
          "creatingNicsUrl":"[concat(parameters('baseUrl'),'/creatingNICS.json')]"
       },
-      "assetLocation":"https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/sharepoint-server-farm-ha/dsc"
+      "assetLocation":"https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/sharepoint-server-farm-ha/dsc"
    },
    "resources":[
       {

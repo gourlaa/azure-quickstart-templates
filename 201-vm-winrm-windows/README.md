@@ -11,7 +11,7 @@ Description of Template
 This template allows you to deploy a simple Windows VM using a few different options for the Windows version. 
 This will then configure a WinRM https listener by creating a new test certificate.
 
-The template uses a custom script extension which executes the script 'https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/201-vm-winrm-windows/ConfigureWinRM.ps1' on the target machine.
+The template uses a custom script extension which executes the script 'https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/201-vm-winrm-windows/ConfigureWinRM.ps1' on the target machine.
 This script creates a self signed certificate and configures the WinRM Https listener using the certificate's thumbprint.
 
 

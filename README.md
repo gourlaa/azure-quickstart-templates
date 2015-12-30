@@ -52,7 +52,7 @@ To make sure your template is added to Azure.com index, please follow these guid
        "typeHandlerVersion": "1.4",
        "settings": {
        "fileUris": [
-     	   "https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/lamp-app/install_lamp.sh"
+     	   "https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/lamp-app/install_lamp.sh"
        ]
      },
      "protectedSettings": {
@@ -180,7 +180,7 @@ Here's an example in an `azuredeploy.parameters.json` file:
 
 If you're making use of `raw.githubusercontent.com` links within your template contribution (within the template file itself or any scripts in your contribution) please ensure the following:
 
-- Ensure any raw.githubusercontent.com links which refer to content within your pull request points to `https://raw.githubusercontent.com/Azure/azure-quickstart-templates/...' and **NOT** your fork.
+- Ensure any raw.githubusercontent.com links which refer to content within your pull request points to `https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/...' and **NOT** your fork.
 
 - All raw.githubusercontent.com links are placed in your `azuredeploy.json` and you pass the link down into your scripts & linked templates via this top-level template. This ensures we re-link correctly from your pull-request repository and branch.
 
