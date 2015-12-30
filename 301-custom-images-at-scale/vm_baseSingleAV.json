@@ -66,7 +66,7 @@
               },
               "loadBalancerBackendAddressPools": [
                 {
-                  "id": "[concat([resourceId('Microsoft.Network/loadBalancers', 'lbapache')], '/backendAddressPools/BackendPool1')]"
+                  "id": "['/subscriptions/5619b772-c266-429d-a4be-6326c4d12025/resourceGroups/br-prod/providers/Microsoft.Network/loadBalancers/lbapache']"
                 }
               ],
               "subnet": {
