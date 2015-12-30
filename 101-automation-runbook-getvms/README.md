@@ -1,5 +1,5 @@
 # Create VM tutorial runbook, Automation credential, and start a job
-[![Deploy to Azure](http://azuredeploy.net/deploybutton.png)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2FAzure%2Fazure-quickstart-templates%2Fmaster%2F101-automation-runbook-getvms%2Fazuredeploy.json) 
+[![Deploy to Azure](http://azuredeploy.net/deploybutton.png)](https://portal.azure.com/#create/Microsoft.Template/uri/https%3A%2F%2Fraw.githubusercontent.com%2Fgourlaa%2Fazure-quickstart-templates%2Fmaster%2F101-automation-runbook-getvms%2Fazuredeploy.json) 
 
 
 This sample shows how you can deploy a runbook, a credential the runbook relies on, and how to start a job through an Azure Resource Manager template. 
