@@ -132,8 +132,8 @@
   "variables": {
     "vnetName": "[concat(parameters('uniquePrefix'), 'vnet')]",
     "addressPrefix": "10.0.0.0/16",
-    "subnetName": "subnet",
-    "subnetPrefix": "10.0.0.0/21",
+    "subnetName": "apache",
+    "subnetPrefix": "10.0.1.0/21",
     "storageAccountType": "Standard_LRS",
     "location": "[resourceGroup().location]",
     "transferImagePublisher": "Canonical",
@@ -142,7 +142,7 @@
     "imagePieces": "[split(parameters('imageLocation'),'/')]",
     "blobName": "[variables('imagePieces')[sub(length(variables('imagePieces')),1)]]",
 
-    "templateLocation": "https://raw.githubusercontent.com/Azure/azure-quickstart-templates/master/301-custom-images-at-scale/",
+    "templateLocation": "https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/301-custom-images-at-scale/",
 
     "sharedResourcesTemplateUri ": "[concat(variables('templateLocation'), 'shared-resources.json')]",
     "uploadTemplateUri": "[concat(variables('templateLocation'), 'upload.json')]",
@@ -313,6 +313,62 @@
           "index": { "value": "[copyIndex()]" },
           "uploadScriptURI": { "value": "[variables('uploadScriptURI')]" }
         }
+      }
+    },
+    {
+      "apiVersion": "2015-05-01-preview",
+      "type": "Microsoft.Network/loadBalancers",
+      "name": "lbapache",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "frontendIPConfigurations": [
+          {
+            "properties": {
+              "subnet": {
+                "id": "[concat('/subscriptions/', subscription().subscriptionId,'/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Network/virtualNetworks/', parameters('vnetName'), '/subnets/', parameters('subnetName'))]"
+              },
+              "privateIPAddress": "10.0.1.6",
+              "privateIPAllocationMethod": "Static"
+            },
+            "name": "LoadBalancerFrontend"
+          }
+        ],
+        "backendAddressPools": [
+          {
+            "name": "BackendPool1"
+          }
+        ],
+        "loadBalancingRules": [
+          {
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'lbapache'), '/frontendIpConfigurations/LoadBalancerFrontend')]"
+              },
+              "backendAddressPool": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'lbapache'), '/backendAddressPools/BackendPool1')]"
+              },
+              "probe": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'lbapache'), '/probes/brprodapache')]"
+              },
+              "protocol": "Tcp",
+              "frontendPort": 80,
+              "backendPort": 80,
+              "idleTimeoutInSeconds": 11
+            },
+            "Name": "br-prod-apache"
+          }
+        ],
+        "probes": [
+          {
+            "properties": {
+              "protocol": "Tcp",
+              "port": 80,
+              "intervalInSeconds": 5,
+              "numberOfProbes": 2
+            },
+            "name": "brprodapache"
+          }
+        ]
       }
     },
     {

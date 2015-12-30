@@ -52,12 +52,23 @@
         "name": "[concat('nicLoop', parameters('clusterName'))]",
         "count": "[parameters('instanceCountPerSA')]"
       },
+      "dependsOn": [
+        "['Microsoft.Network/loadBalancers/lbapache']"
+      ],
       "properties": {
         "ipConfigurations": [
           {
             "name": "ipconfig1",
             "properties": {
               "privateIPAllocationMethod": "Dynamic",
+              "publicIPAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIPAddresses', 'publicIP1')]"
+              },
+              "loadBalancerBackendAddressPools": [
+                {
+                  "id": "[concat([resourceId('Microsoft.Network/loadBalancers',lbapache)], '/backendAddressPools/BackendPool1')]"
+                }
+              ],
               "subnet": {
                 "id": "[concat('/subscriptions/', subscription().subscriptionId,'/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Network/virtualNetworks/', parameters('vnetName'), '/subnets/', parameters('subnetName'))]"
               }
