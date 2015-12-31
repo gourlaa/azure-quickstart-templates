@@ -52,9 +52,6 @@
         "name": "[concat('nicLoop', parameters('clusterName'))]",
         "count": "[parameters('instanceCountPerSA')]"
       },
-      "dependsOn": [
-        "['Microsoft.Network/loadBalancers/lbapache']"
-      ],
       "properties": {
         "ipConfigurations": [
           {
