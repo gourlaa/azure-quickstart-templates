@@ -52,6 +52,9 @@
         "name": "[concat('nicLoop', parameters('clusterName'))]",
         "count": "[parameters('instanceCountPerSA')]"
       },
+      "dependsOn": [
+        "['Microsoft.Network/loadBalancers/lbapache']"
+      ],
       "properties": {
         "ipConfigurations": [
           {
@@ -63,7 +66,7 @@
               },
               "loadBalancerBackendAddressPools": [
                 {
-                  "id": "['/subscriptions/5619b772-c266-429d-a4be-6326c4d12025/resourceGroups/br-prod/providers/Microsoft.Network/loadBalancers/lbapache']"
+                  "id": "[concat('/subscriptions/5619b772-c266-429d-a4be-6326c4d12025/resourceGroups/br-prod/providers/Microsoft.Network/loadBalancers/lbapache', '/backendAddressPools/BackendPool1')]"
                 }
               ],
               "subnet": {
