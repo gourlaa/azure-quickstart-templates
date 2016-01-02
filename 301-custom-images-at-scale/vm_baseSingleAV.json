@@ -117,6 +117,26 @@
           ]
         }
       }
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachines/extensions",
+      "name": "[concat('vmscript', parameters('clusterName'), padLeft(copyIndex(), 2, '0'))]",
+      "apiVersion": "2015-05-01-preview",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[concat('vm', parameters('clusterName'), padLeft(copyIndex(), 2, '0'))]"
+      ],
+      "properties": {
+        "publisher": "Microsoft.OSTCExtensions",
+        "type": "CustomScriptForLinux",
+        "typeHandlerVersion": "1.2",
+        "settings": {
+          "fileUris": [
+            "https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/301-custom-images-at-scale/deploy.sh"
+          ],
+          "commandToExecute": "sh install_apache.sh"
+        }
+      }
     }
   ]
 }
