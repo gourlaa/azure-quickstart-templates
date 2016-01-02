@@ -130,15 +130,15 @@
     }
   },
   "variables": {
-    "vnetName": "[concat(parameters('uniquePrefix'), 'vnet')]",
+    "vnetName": "braineetVNET",
     "addressPrefix": "10.0.0.0/16",
     "subnetName": "apache",
-    "subnetPrefix": "10.0.1.0/21",
+    "subnetPrefix": "10.0.1.0/24",
     "storageAccountType": "Standard_LRS",
     "location": "[resourceGroup().location]",
     "transferImagePublisher": "Canonical",
     "transferImageOffer": "UbuntuServer",
-    "ubuntuOSVersion": "15.10",
+    "ubuntuOSVersion": "14.04.3-LTS",
     "imagePieces": "[split(parameters('imageLocation'),'/')]",
     "blobName": "[variables('imagePieces')[sub(length(variables('imagePieces')),1)]]",
 
@@ -356,6 +356,24 @@
               "idleTimeoutInSeconds": 11
             },
             "Name": "br-prod-apache"
+          },
+          {
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'lbapache'), '/frontendIpConfigurations/LoadBalancerFrontend')]"
+              },
+              "backendAddressPool": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'lbapache'), '/backendAddressPools/BackendPool1')]"
+              },
+              "probe": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'lbapache'), '/probes/brprodmoni')]"
+              },
+              "protocol": "Tcp",
+              "frontendPort": 10050,
+              "backendPort": 10050,
+              "idleTimeoutInSeconds": 11
+            },
+            "Name": "br-prod-moni"
           }
         ],
         "probes": [
@@ -367,6 +385,15 @@
               "numberOfProbes": 2
             },
             "name": "brprodapache"
+          },
+          {
+            "properties": {
+              "protocol": "Tcp",
+              "port": 10050,
+              "intervalInSeconds": 15,
+              "numberOfProbes": 2
+            },
+            "name": "brprodmoni"
           }
         ]
       }

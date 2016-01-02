@@ -4,5 +4,6 @@ ADDRESS=`ifconfig eth0 | grep "inet addr" | sed 's/.*addr:\([0-9]*\.[0-9]*\.[0-9
 HOSTNAME=`echo $(hostname)`
 REPLACEMENT='s/br-pre-apache1/'$HOSTNAME'/g'
 
-sed -i -- $REPLACEMENT /etc/zabbix/zabbix_agentd.conf
+sudo sed -i -- $REPLACEMENT /etc/zabbix/zabbix_agentd.conf
+
 
