@@ -21,6 +21,12 @@
         "description": "Size of the VM used to transfer the VM image to various storage acounts."
       }
     },
+    "dnsNameforLBIP": {
+      "type": "string",
+      "metadata": {
+        "description": "DNS for Load Balancer IP"
+      }
+    },
     "computeVMSize": {
       "type": "string",
       "defaultValue": "Standard_A1",
@@ -317,6 +323,18 @@
     },
     {
       "apiVersion": "2015-05-01-preview",
+      "type": "Microsoft.Network/publicIPAddresses",
+      "name": "[variables('publicIPAddressName')]",
+      "location": "[resourceGroup().location]",
+      "properties": {
+        "publicIPAllocationMethod": "[variables('publicIPAddressType')]",
+        "dnsSettings": {
+          "domainNameLabel": "[parameters('dnsNameforLBIP')]"
+        }
+      }
+    },
+    {
+      "apiVersion": "2015-05-01-preview",
       "type": "Microsoft.Network/loadBalancers",
       "name": "lbvarnish",
       "location": "[resourceGroup().location]",
@@ -327,8 +345,9 @@
               "subnet": {
                 "id": "[concat('/subscriptions/', subscription().subscriptionId,'/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Network/virtualNetworks/', variables('vnetName'), '/subnets/', variables('subnetName'))]"
               },
-              "privateIPAddress": "10.0.0.6",
-              "privateIPAllocationMethod": "Static"
+              "publicIPAddress": {
+                "id": "[variables('publicIPAddressID')]"
+              }
             },
             "name": "LoadBalancerFrontend"
           }
