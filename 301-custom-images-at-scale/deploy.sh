@@ -6,4 +6,4 @@ REPLACEMENT='s/br-pre-apache1/'$HOSTNAME'/g'
 
 sudo sed -i -- $REPLACEMENT /etc/zabbix/zabbix_agentd.conf
 
-
+sudo service zabbix-agent restart

@@ -138,11 +138,11 @@
     "location": "[resourceGroup().location]",
     "transferImagePublisher": "Canonical",
     "transferImageOffer": "UbuntuServer",
-    "ubuntuOSVersion": "15.10",
+    "ubuntuOSVersion": "14.04.3-LTS",
     "imagePieces": "[split(parameters('imageLocation'),'/')]",
     "blobName": "[variables('imagePieces')[sub(length(variables('imagePieces')),1)]]",
 
-    "templateLocation": "https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/301-custom-images-at-scale/",
+    "templateLocation": "https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/301-custom-varnish-at-scale/",
 
     "sharedResourcesTemplateUri ": "[concat(variables('templateLocation'), 'shared-resources.json')]",
     "uploadTemplateUri": "[concat(variables('templateLocation'), 'upload.json')]",
