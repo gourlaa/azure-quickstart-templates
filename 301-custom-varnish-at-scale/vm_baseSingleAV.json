@@ -134,7 +134,7 @@
           "fileUris": [
             "https://raw.githubusercontent.com/gourlaa/azure-quickstart-templates/master/301-custom-varnish-at-scale/deploy.sh"
           ],
-          "commandToExecute": "sh install_apache.sh"
+          "commandToExecute": "sh deploy.sh"
         }
       }
     }

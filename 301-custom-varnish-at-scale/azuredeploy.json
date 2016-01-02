@@ -132,13 +132,13 @@
   "variables": {
     "vnetName": "braineetVNET",
     "addressPrefix": "10.0.0.0/16",
-    "subnetName": "apache",
-    "subnetPrefix": "10.0.1.0/24",
+    "subnetName": "varnish",
+    "subnetPrefix": "10.0.0.0/24",
     "storageAccountType": "Standard_LRS",
     "location": "[resourceGroup().location]",
     "transferImagePublisher": "Canonical",
     "transferImageOffer": "UbuntuServer",
-    "ubuntuOSVersion": "14.04.3-LTS",
+    "ubuntuOSVersion": "15.10",
     "imagePieces": "[split(parameters('imageLocation'),'/')]",
     "blobName": "[variables('imagePieces')[sub(length(variables('imagePieces')),1)]]",
 
@@ -318,7 +318,7 @@
     {
       "apiVersion": "2015-05-01-preview",
       "type": "Microsoft.Network/loadBalancers",
-      "name": "lbapache",
+      "name": "lbvarnish",
       "location": "[resourceGroup().location]",
       "properties": {
         "frontendIPConfigurations": [
@@ -327,7 +327,7 @@
               "subnet": {
                 "id": "[concat('/subscriptions/', subscription().subscriptionId,'/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Network/virtualNetworks/', variables('vnetName'), '/subnets/', variables('subnetName'))]"
               },
-              "privateIPAddress": "10.0.1.6",
+              "privateIPAddress": "10.0.0.6",
               "privateIPAllocationMethod": "Static"
             },
             "name": "LoadBalancerFrontend"
@@ -342,31 +342,31 @@
           {
             "properties": {
               "frontendIPConfiguration": {
-                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'lbapache'), '/frontendIpConfigurations/LoadBalancerFrontend')]"
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'lbvarnish'), '/frontendIpConfigurations/LoadBalancerFrontend')]"
               },
               "backendAddressPool": {
-                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'lbapache'), '/backendAddressPools/BackendPool1')]"
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'lbvarnish'), '/backendAddressPools/BackendPool1')]"
               },
               "probe": {
-                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'lbapache'), '/probes/brprodapache')]"
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'lbvarnish'), '/probes/brprodvarnish')]"
               },
               "protocol": "Tcp",
               "frontendPort": 80,
               "backendPort": 80,
               "idleTimeoutInSeconds": 11
             },
-            "Name": "br-prod-apache"
+            "Name": "br-prod-varnish"
           },
           {
             "properties": {
               "frontendIPConfiguration": {
-                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'lbapache'), '/frontendIpConfigurations/LoadBalancerFrontend')]"
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'lbvarnish'), '/frontendIpConfigurations/LoadBalancerFrontend')]"
               },
               "backendAddressPool": {
-                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'lbapache'), '/backendAddressPools/BackendPool1')]"
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'lbvarnish'), '/backendAddressPools/BackendPool1')]"
               },
               "probe": {
-                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'lbapache'), '/probes/brprodmoni')]"
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'lbvarnish'), '/probes/brprodmoni')]"
               },
               "protocol": "Tcp",
               "frontendPort": 10050,
@@ -384,7 +384,7 @@
               "intervalInSeconds": 5,
               "numberOfProbes": 2
             },
-            "name": "brprodapache"
+            "name": "brprodvarnish"
           },
           {
             "properties": {
