@@ -145,6 +145,8 @@
     "transferImagePublisher": "Canonical",
     "transferImageOffer": "UbuntuServer",
     "ubuntuOSVersion": "15.10",
+    "publicIPAddressName": "braineetIP",
+    "publicIPAddressID": "[resourceId('Microsoft.Network/publicIPAddresses',variables('publicIPAddressName'))]",
     "imagePieces": "[split(parameters('imageLocation'),'/')]",
     "blobName": "[variables('imagePieces')[sub(length(variables('imagePieces')),1)]]",
 
@@ -338,6 +340,9 @@
       "type": "Microsoft.Network/loadBalancers",
       "name": "lbvarnish",
       "location": "[resourceGroup().location]",
+      "dependsOn": [
+        "[concat('Microsoft.Network/publicIPAddresses/', variables('publicIPAddressName'))]"
+      ],
       "properties": {
         "frontendIPConfigurations": [
           {
