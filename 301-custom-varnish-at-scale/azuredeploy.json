@@ -140,6 +140,7 @@
     "addressPrefix": "10.0.0.0/16",
     "subnetName": "varnish",
     "subnetPrefix": "10.0.0.0/24",
+    "publicIPAddressType": "Dynamic",
     "storageAccountType": "Standard_LRS",
     "location": "[resourceGroup().location]",
     "transferImagePublisher": "Canonical",
