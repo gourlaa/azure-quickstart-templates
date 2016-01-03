@@ -348,9 +348,6 @@
         "frontendIPConfigurations": [
           {
             "properties": {
-              "subnet": {
-                "id": "[concat('/subscriptions/', subscription().subscriptionId,'/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Network/virtualNetworks/', variables('vnetName'), '/subnets/', variables('subnetName'))]"
-              },
               "publicIPAddress": {
                 "id": "[variables('publicIPAddressID')]"
               }
