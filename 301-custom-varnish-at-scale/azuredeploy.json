@@ -348,9 +348,6 @@
         "frontendIPConfigurations": [
           {
             "properties": {
-              "subnet": {
-                "id": "[concat('/subscriptions/', subscription().subscriptionId,'/resourceGroups/', resourceGroup().name, '/providers/Microsoft.Network/virtualNetworks/', variables('vnetName'), '/subnets/', variables('subnetName'))]"
-              },
               "publicIPAddress": {
                 "id": "[variables('publicIPAddressID')]"
               }
@@ -373,14 +370,32 @@
                 "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'lbvarnish'), '/backendAddressPools/BackendPool1')]"
               },
               "probe": {
-                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'lbvarnish'), '/probes/brprodvarnish')]"
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'lbvarnish'), '/probes/brprodhttp')]"
               },
               "protocol": "Tcp",
               "frontendPort": 80,
               "backendPort": 80,
               "idleTimeoutInSeconds": 11
             },
-            "Name": "br-prod-varnish"
+            "Name": "br-prod-http"
+          },
+          {
+            "properties": {
+              "frontendIPConfiguration": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'lbvarnish'), '/frontendIpConfigurations/LoadBalancerFrontend')]"
+              },
+              "backendAddressPool": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'lbvarnish'), '/backendAddressPools/BackendPool1')]"
+              },
+              "probe": {
+                "id": "[concat(resourceId('Microsoft.Network/loadBalancers', 'lbvarnish'), '/probes/brprodhttps')]"
+              },
+              "protocol": "Tcp",
+              "frontendPort": 443,
+              "backendPort": 443,
+              "idleTimeoutInSeconds": 11
+            },
+            "Name": "br-prod-https"
           },
           {
             "properties": {
@@ -409,7 +424,16 @@
               "intervalInSeconds": 5,
               "numberOfProbes": 2
             },
-            "name": "brprodvarnish"
+            "name": "brprodhttp"
+          },
+          {
+            "properties": {
+              "protocol": "Tcp",
+              "port": 443,
+              "intervalInSeconds": 5,
+              "numberOfProbes": 2
+            },
+            "name": "brprodhttps"
           },
           {
             "properties": {
