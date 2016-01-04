@@ -114,10 +114,10 @@
               "name": "[concat(parameters('clusterName'),'-dataDisk0')]",
               "createOption": "FromImage",
               "image": {
-                "uri": "http://r5gtn4e6ditb6brmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria-galera2-dataDisk-0.bcf49f2f-dbf3-4515-96ce-bf1f2cf94dee.vhd"
+                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria4-dataDisk-0.7316bfd4-3279-48ea-ab76-92a978617326.vhd"
               },
               "vhd": {
-                "uri": "http://r5gtn4e6ditb6brmaria.blob.core.windows.net/vmcontainer0d94c7cf-9bfe-43b3-9847-525cb1f207fc/dataDisk-0.0d94c7cf-9bfe-43b3-9847-525cb1f207fc.vhd"
+                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/vmcontainer69d8b70d-7b06-4198-b4c9-7aeb7109d734/dataDisk-0.69d8b70d-7b06-4198-b4c9-7aeb7109d734.vhd"
               },
               "caching": "None"
             },
@@ -126,10 +126,10 @@
               "name": "[concat(parameters('clusterName'),'-dataDisk1')]",
               "createOption": "FromImage",
               "image": {
-                "uri": "http://r5gtn4e6ditb6brmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria-galera2-dataDisk-1.bcf49f2f-dbf3-4515-96ce-bf1f2cf94dee.vhd"
+                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria4-dataDisk-1.7316bfd4-3279-48ea-ab76-92a978617326.vhd"
               },
               "vhd": {
-                "uri": "http://r5gtn4e6ditb6brmaria.blob.core.windows.net/vmcontainer0d94c7cf-9bfe-43b3-9847-525cb1f207fc/dataDisk-1.0d94c7cf-9bfe-43b3-9847-525cb1f207fc.vhd"
+                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/vmcontainer69d8b70d-7b06-4198-b4c9-7aeb7109d734/dataDisk-1.69d8b70d-7b06-4198-b4c9-7aeb7109d734.vhd"
               },
               "caching": "None"
             },
@@ -138,10 +138,10 @@
               "name": "[concat(parameters('clusterName'),'-dataDisk2')]",
               "createOption": "FromImage",
               "image": {
-                "uri": "http://r5gtn4e6ditb6brmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria-galera2-dataDisk-2.bcf49f2f-dbf3-4515-96ce-bf1f2cf94dee.vhd"
+                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria4-dataDisk-2.7316bfd4-3279-48ea-ab76-92a978617326.vhd"
               },
               "vhd": {
-                "uri": "http://r5gtn4e6ditb6brmaria.blob.core.windows.net/vmcontainer0d94c7cf-9bfe-43b3-9847-525cb1f207fc/dataDisk-2.0d94c7cf-9bfe-43b3-9847-525cb1f207fc.vhd"
+                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/vmcontainer69d8b70d-7b06-4198-b4c9-7aeb7109d734/dataDisk-2.69d8b70d-7b06-4198-b4c9-7aeb7109d734.vhd"
               },
               "caching": "None"
             },
@@ -150,10 +150,10 @@
               "name": "[concat(parameters('clusterName'),'-dataDisk3')]",
               "createOption": "FromImage",
               "image": {
-                "uri": "http://r5gtn4e6ditb6brmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria-galera2-dataDisk-3.bcf49f2f-dbf3-4515-96ce-bf1f2cf94dee.vhd"
+                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria4-dataDisk-3.7316bfd4-3279-48ea-ab76-92a978617326.vhd"
               },
               "vhd": {
-                "uri": "http://r5gtn4e6ditb6brmaria.blob.core.windows.net/vmcontainer0d94c7cf-9bfe-43b3-9847-525cb1f207fc/dataDisk-3.0d94c7cf-9bfe-43b3-9847-525cb1f207fc.vhd"
+                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/vmcontainer69d8b70d-7b06-4198-b4c9-7aeb7109d734/dataDisk-3.69d8b70d-7b06-4198-b4c9-7aeb7109d734.vhd"
               },
               "caching": "None"
             },
@@ -162,10 +162,10 @@
               "name": "[concat(parameters('clusterName'),'-dataDisk4')]",
               "createOption": "FromImage",
               "image": {
-                "uri": "http://r5gtn4e6ditb6brmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria-galera2-dataDisk-4.bcf49f2f-dbf3-4515-96ce-bf1f2cf94dee.vhd"
+                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria4-dataDisk-4.7316bfd4-3279-48ea-ab76-92a978617326.vhd"
               },
               "vhd": {
-                "uri": "http://r5gtn4e6ditb6brmaria.blob.core.windows.net/vmcontainer0d94c7cf-9bfe-43b3-9847-525cb1f207fc/dataDisk-4.0d94c7cf-9bfe-43b3-9847-525cb1f207fc.vhd"
+                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/vmcontainer69d8b70d-7b06-4198-b4c9-7aeb7109d734/dataDisk-4.69d8b70d-7b06-4198-b4c9-7aeb7109d734.vhd"
               },
               "caching": "None"
             },
@@ -174,10 +174,10 @@
               "name": "[concat(parameters('clusterName'),'-dataDisk5')]",
               "createOption": "FromImage",
               "image": {
-                "uri": "http://r5gtn4e6ditb6brmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria-galera2-dataDisk-5.bcf49f2f-dbf3-4515-96ce-bf1f2cf94dee.vhd"
+                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria4-dataDisk-5.7316bfd4-3279-48ea-ab76-92a978617326.vhd"
               },
               "vhd": {
-                "uri": "http://r5gtn4e6ditb6brmaria.blob.core.windows.net/vmcontainer0d94c7cf-9bfe-43b3-9847-525cb1f207fc/dataDisk-5.0d94c7cf-9bfe-43b3-9847-525cb1f207fc.vhd"
+                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/vmcontainer69d8b70d-7b06-4198-b4c9-7aeb7109d734/dataDisk-5.69d8b70d-7b06-4198-b4c9-7aeb7109d734.vhd"
               },
               "caching": "None"
             },
@@ -186,10 +186,10 @@
               "name": "[concat(parameters('clusterName'),'-dataDisk6')]",
               "createOption": "FromImage",
               "image": {
-                "uri": "http://r5gtn4e6ditb6brmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria-galera2-dataDisk-6.bcf49f2f-dbf3-4515-96ce-bf1f2cf94dee.vhd"
+                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria4-dataDisk-6.7316bfd4-3279-48ea-ab76-92a978617326.vhd"
               },
               "vhd": {
-                "uri": "http://r5gtn4e6ditb6brmaria.blob.core.windows.net/vmcontainer0d94c7cf-9bfe-43b3-9847-525cb1f207fc/dataDisk-6.0d94c7cf-9bfe-43b3-9847-525cb1f207fc.vhd"
+                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/vmcontainer69d8b70d-7b06-4198-b4c9-7aeb7109d734/dataDisk-6.69d8b70d-7b06-4198-b4c9-7aeb7109d734.vhd"
               },
               "caching": "None"
             },
@@ -198,10 +198,10 @@
               "name": "[concat(parameters('clusterName'),'-dataDisk7')]",
               "createOption": "FromImage",
               "image": {
-                "uri": "http://r5gtn4e6ditb6brmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria-galera2-dataDisk-7.bcf49f2f-dbf3-4515-96ce-bf1f2cf94dee.vhd"
+                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria4-dataDisk-7.7316bfd4-3279-48ea-ab76-92a978617326.vhd"
               },
               "vhd": {
-                "uri": "http://r5gtn4e6ditb6brmaria.blob.core.windows.net/vmcontainer0d94c7cf-9bfe-43b3-9847-525cb1f207fc/dataDisk-7.0d94c7cf-9bfe-43b3-9847-525cb1f207fc.vhd"
+                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/vmcontainer69d8b70d-7b06-4198-b4c9-7aeb7109d734/dataDisk-7.69d8b70d-7b06-4198-b4c9-7aeb7109d734.vhd"
               },
               "caching": "None"
             }
