@@ -181,7 +181,7 @@
       "apiVersion": "2015-05-01-preview",
       "location": "[variables('location')]",
       "properties": {
-        "accountType": "Standard_LRS"
+        "accountType": "Premium_LRS"
       }
     },
     {
