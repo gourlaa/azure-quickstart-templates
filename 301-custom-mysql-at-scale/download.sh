@@ -9,7 +9,7 @@ pip3 install blobxfer
 apt-get install -y npm 
 ln -s /usr/bin/nodejs /usr/bin/node
 npm install -g azure-cli 
-#pip3 install azure
+pip3 install azure
 azure config mode arm 
 
 sa_domain=$(echo "$1" | cut -f3 -d/)
