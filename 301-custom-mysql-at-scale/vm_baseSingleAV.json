@@ -107,7 +107,7 @@
             "vhd": {
               "uri": "[concat(parameters('baseVHDURI'),'osdisk', parameters('clusterName'), padLeft(copyIndex(), 2, '0'), '.vhd')]"
             }
-          }
+          },
           "dataDisks": [
             {
               "lun": 0,
