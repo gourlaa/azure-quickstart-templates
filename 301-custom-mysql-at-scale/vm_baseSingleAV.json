@@ -114,7 +114,7 @@
               "name": "[concat(parameters('clusterName'),'-dataDisk0')]",
               "createOption": "FromImage",
               "image": {
-                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria4-dataDisk-0.7316bfd4-3279-48ea-ab76-92a978617326.vhd"
+                "uri": "[concat(parameters('baseVHDURI'), 'template-maria4-dataDisk-0.7316bfd4-3279-48ea-ab76-92a978617326.vhd')]"
               },
               "vhd": {
                 "uri": "[concat(parameters('baseVHDURI'),'dataDisk0', parameters('clusterName'), padLeft(copyIndex(), 2, '0'), '.vhd')]"
@@ -126,7 +126,7 @@
               "name": "[concat(parameters('clusterName'),'-dataDisk1')]",
               "createOption": "FromImage",
               "image": {
-                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria4-dataDisk-1.7316bfd4-3279-48ea-ab76-92a978617326.vhd"
+                "uri": "[concat(parameters('baseVHDURI'), 'template-maria4-dataDisk-1.7316bfd4-3279-48ea-ab76-92a978617326.vhd')]"
               },
               "vhd": {
                 "uri": "[concat(parameters('baseVHDURI'),'dataDisk1', parameters('clusterName'), padLeft(copyIndex(), 2, '0'), '.vhd')]"
@@ -138,7 +138,7 @@
               "name": "[concat(parameters('clusterName'),'-dataDisk2')]",
               "createOption": "FromImage",
               "image": {
-                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria4-dataDisk-2.7316bfd4-3279-48ea-ab76-92a978617326.vhd"
+                "uri": "[concat(parameters('baseVHDURI'), 'template-maria4-dataDisk-2.7316bfd4-3279-48ea-ab76-92a978617326.vhd')]"
               },
               "vhd": {
                 "uri": "[concat(parameters('baseVHDURI'),'dataDisk2', parameters('clusterName'), padLeft(copyIndex(), 2, '0'), '.vhd')]"
@@ -150,7 +150,7 @@
               "name": "[concat(parameters('clusterName'),'-dataDisk3')]",
               "createOption": "FromImage",
               "image": {
-                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria4-dataDisk-3.7316bfd4-3279-48ea-ab76-92a978617326.vhd"
+                "uri": "[concat(parameters('baseVHDURI'), 'template-maria4-dataDisk-3.7316bfd4-3279-48ea-ab76-92a978617326.vhd')]"
               },
               "vhd": {
                 "uri": "[concat(parameters('baseVHDURI'),'dataDisk3', parameters('clusterName'), padLeft(copyIndex(), 2, '0'), '.vhd')]"
@@ -162,7 +162,7 @@
               "name": "[concat(parameters('clusterName'),'-dataDisk4')]",
               "createOption": "FromImage",
               "image": {
-                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria4-dataDisk-4.7316bfd4-3279-48ea-ab76-92a978617326.vhd"
+                "uri": "[concat(parameters('baseVHDURI'), 'template-maria4-dataDisk-4.7316bfd4-3279-48ea-ab76-92a978617326.vhd')]"
               },
               "vhd": {
                 "uri": "[concat(parameters('baseVHDURI'),'dataDisk4', parameters('clusterName'), padLeft(copyIndex(), 2, '0'), '.vhd')]"
@@ -174,7 +174,7 @@
               "name": "[concat(parameters('clusterName'),'-dataDisk5')]",
               "createOption": "FromImage",
               "image": {
-                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria4-dataDisk-5.7316bfd4-3279-48ea-ab76-92a978617326.vhd"
+                "uri": "[concat(parameters('baseVHDURI'), 'template-maria4-dataDisk-5.7316bfd4-3279-48ea-ab76-92a978617326.vhd')]"
               },
               "vhd": {
                 "uri": "[concat(parameters('baseVHDURI'),'dataDisk5', parameters('clusterName'), padLeft(copyIndex(), 2, '0'), '.vhd')]"
@@ -186,7 +186,7 @@
               "name": "[concat(parameters('clusterName'),'-dataDisk6')]",
               "createOption": "FromImage",
               "image": {
-                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria4-dataDisk-6.7316bfd4-3279-48ea-ab76-92a978617326.vhd"
+                "uri": "[concat(parameters('baseVHDURI'), 'template-maria4-dataDisk-6.7316bfd4-3279-48ea-ab76-92a978617326.vhd')]"
               },
               "vhd": {
                 "uri": "[concat(parameters('baseVHDURI'),'dataDisk6', parameters('clusterName'), padLeft(copyIndex(), 2, '0'), '.vhd')]"
@@ -198,7 +198,7 @@
               "name": "[concat(parameters('clusterName'),'-dataDisk7')]",
               "createOption": "FromImage",
               "image": {
-                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria4-dataDisk-7.7316bfd4-3279-48ea-ab76-92a978617326.vhd"
+                "uri": "[concat(parameters('baseVHDURI'), 'template-maria4-dataDisk-7.7316bfd4-3279-48ea-ab76-92a978617326.vhd')]"
               },
               "vhd": {
                 "uri": "[concat(parameters('baseVHDURI'),'dataDisk7', parameters('clusterName'), padLeft(copyIndex(), 2, '0'), '.vhd')]"
