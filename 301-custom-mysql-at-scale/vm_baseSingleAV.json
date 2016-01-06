@@ -117,7 +117,7 @@
                 "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria4-dataDisk-0.7316bfd4-3279-48ea-ab76-92a978617326.vhd"
               },
               "vhd": {
-                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/vmcontainer69d8b70d-7b06-4198-b4c9-7aeb7109d734/dataDisk-0.69d8b70d-7b06-4198-b4c9-7aeb7109d734.vhd"
+                "uri": "[concat(parameters('baseVHDURI'),'dataDisk0', parameters('clusterName'), padLeft(copyIndex(), 2, '0'), '.vhd')]"
               },
               "caching": "None"
             },
@@ -129,7 +129,7 @@
                 "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria4-dataDisk-1.7316bfd4-3279-48ea-ab76-92a978617326.vhd"
               },
               "vhd": {
-                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/vmcontainer69d8b70d-7b06-4198-b4c9-7aeb7109d734/dataDisk-1.69d8b70d-7b06-4198-b4c9-7aeb7109d734.vhd"
+                "uri": "[concat(parameters('baseVHDURI'),'dataDisk1', parameters('clusterName'), padLeft(copyIndex(), 2, '0'), '.vhd')]"
               },
               "caching": "None"
             },
@@ -141,7 +141,7 @@
                 "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria4-dataDisk-2.7316bfd4-3279-48ea-ab76-92a978617326.vhd"
               },
               "vhd": {
-                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/vmcontainer69d8b70d-7b06-4198-b4c9-7aeb7109d734/dataDisk-2.69d8b70d-7b06-4198-b4c9-7aeb7109d734.vhd"
+                "uri": "[concat(parameters('baseVHDURI'),'dataDisk2', parameters('clusterName'), padLeft(copyIndex(), 2, '0'), '.vhd')]"
               },
               "caching": "None"
             },
@@ -153,7 +153,7 @@
                 "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria4-dataDisk-3.7316bfd4-3279-48ea-ab76-92a978617326.vhd"
               },
               "vhd": {
-                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/vmcontainer69d8b70d-7b06-4198-b4c9-7aeb7109d734/dataDisk-3.69d8b70d-7b06-4198-b4c9-7aeb7109d734.vhd"
+                "uri": "[concat(parameters('baseVHDURI'),'dataDisk3', parameters('clusterName'), padLeft(copyIndex(), 2, '0'), '.vhd')]"
               },
               "caching": "None"
             },
@@ -165,7 +165,7 @@
                 "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria4-dataDisk-4.7316bfd4-3279-48ea-ab76-92a978617326.vhd"
               },
               "vhd": {
-                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/vmcontainer69d8b70d-7b06-4198-b4c9-7aeb7109d734/dataDisk-4.69d8b70d-7b06-4198-b4c9-7aeb7109d734.vhd"
+                "uri": "[concat(parameters('baseVHDURI'),'dataDisk4', parameters('clusterName'), padLeft(copyIndex(), 2, '0'), '.vhd')]"
               },
               "caching": "None"
             },
@@ -177,7 +177,7 @@
                 "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria4-dataDisk-5.7316bfd4-3279-48ea-ab76-92a978617326.vhd"
               },
               "vhd": {
-                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/vmcontainer69d8b70d-7b06-4198-b4c9-7aeb7109d734/dataDisk-5.69d8b70d-7b06-4198-b4c9-7aeb7109d734.vhd"
+                "uri": "[concat(parameters('baseVHDURI'),'dataDisk5', parameters('clusterName'), padLeft(copyIndex(), 2, '0'), '.vhd')]"
               },
               "caching": "None"
             },
@@ -189,7 +189,7 @@
                 "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria4-dataDisk-6.7316bfd4-3279-48ea-ab76-92a978617326.vhd"
               },
               "vhd": {
-                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/vmcontainer69d8b70d-7b06-4198-b4c9-7aeb7109d734/dataDisk-6.69d8b70d-7b06-4198-b4c9-7aeb7109d734.vhd"
+                "uri": "[concat(parameters('baseVHDURI'),'dataDisk6', parameters('clusterName'), padLeft(copyIndex(), 2, '0'), '.vhd')]"
               },
               "caching": "None"
             },
@@ -201,7 +201,7 @@
                 "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/system/Microsoft.Compute/Images/mytemplate/template-maria4-dataDisk-7.7316bfd4-3279-48ea-ab76-92a978617326.vhd"
               },
               "vhd": {
-                "uri": "https://ugfjbo2qe3ktaprodmaria.blob.core.windows.net/vmcontainer69d8b70d-7b06-4198-b4c9-7aeb7109d734/dataDisk-7.69d8b70d-7b06-4198-b4c9-7aeb7109d734.vhd"
+                "uri": "[concat(parameters('baseVHDURI'),'dataDisk7', parameters('clusterName'), padLeft(copyIndex(), 2, '0'), '.vhd')]"
               },
               "caching": "None"
             }
