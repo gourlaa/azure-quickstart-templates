@@ -24,6 +24,11 @@ echo $blob_name
 echo "$container_name,$blob_name" > /mnt/config.txt  
 
 blobxfer $sa_name $container_name /mnt/ --remoteresource $blob_name --storageaccountkey $2 --download --no-computefilemd5
-
-
-
+blobxfer $sa_name $container_name /mnt/ --remoteresource "template-maria4-dataDisk-0.7316bfd4-3279-48ea-ab76-92a978617326.vhd" --storageaccountkey $2 --download --no-computefilemd5
+blobxfer $sa_name $container_name /mnt/ --remoteresource "template-maria4-dataDisk-1.7316bfd4-3279-48ea-ab76-92a978617326.vhd" --storageaccountkey $2 --download --no-computefilemd5
+blobxfer $sa_name $container_name /mnt/ --remoteresource "template-maria4-dataDisk-2.7316bfd4-3279-48ea-ab76-92a978617326.vhd" --storageaccountkey $2 --download --no-computefilemd5
+blobxfer $sa_name $container_name /mnt/ --remoteresource "template-maria4-dataDisk-3.7316bfd4-3279-48ea-ab76-92a978617326.vhd" --storageaccountkey $2 --download --no-computefilemd5
+blobxfer $sa_name $container_name /mnt/ --remoteresource "template-maria4-dataDisk-4.7316bfd4-3279-48ea-ab76-92a978617326.vhd" --storageaccountkey $2 --download --no-computefilemd5
+blobxfer $sa_name $container_name /mnt/ --remoteresource "template-maria4-dataDisk-5.7316bfd4-3279-48ea-ab76-92a978617326.vhd" --storageaccountkey $2 --download --no-computefilemd5
+blobxfer $sa_name $container_name /mnt/ --remoteresource "template-maria4-dataDisk-6.7316bfd4-3279-48ea-ab76-92a978617326.vhd" --storageaccountkey $2 --download --no-computefilemd5
+blobxfer $sa_name $container_name /mnt/ --remoteresource "template-maria4-dataDisk-7.7316bfd4-3279-48ea-ab76-92a978617326.vhd" --storageaccountkey $2 --download --no-computefilemd5
