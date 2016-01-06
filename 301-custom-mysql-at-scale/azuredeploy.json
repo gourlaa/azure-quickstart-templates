@@ -155,27 +155,6 @@
   },
   "resources": [
     {
-      "name": "[concat(parameters('uniquePrefix'), 'base')]",
-      "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2015-01-01",
-      "properties": {
-        "mode": "Incremental",
-        "templateLink": {
-          "uri": "[variables('sharedResourcesTemplateUri ')]",
-          "contentVersion": "1.0.0.0"
-        },
-        "parameters": {
-          "uniquePrefix": { "value": "[parameters('uniquePrefix')]" },
-          "numberOfSAs": { "value": "[parameters('numberOfSAs')]" },
-          "vnetName": { "value": "[variables('vnetName')]" },
-          "addressPrefix": { "value": "[variables('addressPrefix')]" },
-          "subnetName": { "value": "[variables('subnetName')]" },
-          "subnetPrefix": { "value": "[variables('subnetPrefix')]" },
-          "location": { "value": "[variables('location')]" }
-        }
-      }
-    },
-    {
       "type": "Microsoft.Storage/storageAccounts",
       "name": "[concat('transfer', parameters('uniquePrefix'), 'sa')]",
       "apiVersion": "2015-05-01-preview",
@@ -477,6 +456,37 @@
             "name": "brprodmoni"
           }
         ]
+      }
+    },
+    {
+      "name": "[concat(parameters('uniquePrefix'), 'full')]",
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2015-01-01",
+      "dependsOn": [
+        "uploadLoop"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[concat(variables('finalTemplateUri'), parameters('deploymentType'), '.json')]",
+          "contentVersion": "1.0.0.0"
+        },
+        "parameters": {
+          "uniquePrefix": { "value": "[parameters('uniquePrefix')]" },
+          "numberOfSAs": { "value": "[parameters('numberOfSAs')]" },
+          "instanceCountPerSA": { "value": "[parameters('instanceCountPerSA')]" },
+          "vmSize": { "value": "[parameters('computeVMSize')]" },
+          "OSType": { "value": "[parameters('computeOSType')]" },
+          "blobName": { "value": "[variables('blobName')]" },
+          "vnetName": { "value": "[variables('vnetName')]" },
+          "addressPrefix": { "value": "[variables('addressPrefix')]" },
+          "subnetName": { "value": "[variables('subnetName')]" },
+          "subnetPrefix": { "value": "[variables('subnetPrefix')]" },
+          "templateLocation": { "value": "[variables('templateLocation')]" },
+          "location": { "value": "[variables('location')]" },
+          "adminUsername": { "value": "[parameters('adminUsername')]" },
+          "adminPassword": { "value": "[parameters('adminPassword')]" }
+        }
       }
     }
   ]
