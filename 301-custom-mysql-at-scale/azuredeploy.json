@@ -158,9 +158,6 @@
       "name": "[concat(parameters('uniquePrefix'), 'full')]",
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2015-01-01",
-      "dependsOn": [
-        "uploadLoop"
-      ],
       "properties": {
         "mode": "Incremental",
         "templateLink": {
