@@ -132,7 +132,7 @@
   "variables": {
     "vnetName": "braineetVNET",
     "addressPrefix": "10.0.0.0/16",
-    "subnetName": "apache",
+    "subnetName": "redis",
     "subnetPrefix": "10.0.2.0/24",
     "storageAccountType": "Standard_LRS",
     "location": "[resourceGroup().location]",
