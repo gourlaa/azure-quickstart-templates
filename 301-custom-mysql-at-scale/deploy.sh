@@ -1,12 +1,12 @@
 #!/bin/bash
 
-sudo sh -c "ulimit -SHn 65536 && exec su $LOGNAME"
-sudo sh -c "ulimit -n 65536 && exec su $LOGNAME"
-sudo sh -c "echo “ulimit -SHn 65536” >> /etc/rc.local"
-sudo sh -c "echo “ulimit -n 65536” >> /etc/rc.local"
-sudo chmod -R 777 /etc/mysql/conf.d/cluster.cnf
-sudo echo -e '\nwsrep_provider_options="evs.auto_evict=5;evs.version=1;"' >> /etc/mysql/conf.d/cluster.cnf
-sudo chmod -R 755 /etc/mysql/conf.d/cluster.cnf
+
+REPLACEMENT='s/wsrep_node_address/#wsrep_node_address/g'
+sudo sed -i -- $REPLACEMENT /etc/mysql/conf.d/cluster.cnf
+
+REPLACEMENT='s/wsrep_node_name/#wsrep_node_name/g'
+sudo sed -i -- $REPLACEMENT /etc/mysql/conf.d/cluster.cnf
+
 #sudo service mysql stop
 
 #ADDRESS=`ifconfig eth0 | grep "inet addr" | sed 's/.*addr:\([0-9]*\.[0-9]*\.[0-9]*\.[0-9]*\).*/\1/'`
