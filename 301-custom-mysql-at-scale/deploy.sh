@@ -5,7 +5,7 @@ sudo sh -c "ulimit -n 65536 && exec su $LOGNAME"
 sudo sh -c "echo “ulimit -SHn 65536” >> /etc/rc.local"
 sudo sh -c "echo “ulimit -n 65536” >> /etc/rc.local"
 sudo chmod -R 777 /etc/mysql/conf.d/cluster.cnf
-sudo echo 'wsrep_provider_options="evs.auto_evict=5;evs.version=1;"' >> /etc/mysql/conf.d/cluster.cnf
+sudo echo -e '\nwsrep_provider_options="evs.auto_evict=5;evs.version=1;"' >> /etc/mysql/conf.d/cluster.cnf
 sudo chmod -R 755 /etc/mysql/conf.d/cluster.cnf
 #sudo service mysql stop
 
