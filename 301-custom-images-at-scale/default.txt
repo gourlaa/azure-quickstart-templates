@@ -1,3 +1,22 @@
+
+ServerAdmin             pierre.gourlaouen@braineet.com
+
+HostnameLookups Off
+
+ServerName 127.0.0.1
+
+<Directory "/var/www">
+        AllowOverride All
+        Order allow,deny
+        Allow from all
+</Directory>
+
+<Directory "/var/www/api/web/">
+        AllowOverride All
+        Order allow,deny
+        Allow from all
+</Directory>
+
 <Virtualhost *:80>
   ServerName braineet.com
 ServerAlias www.braineet.com
