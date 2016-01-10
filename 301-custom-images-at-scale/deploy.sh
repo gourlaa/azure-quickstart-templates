@@ -12,6 +12,7 @@ sudo sed -i -- 's/preprod.braineet.com/braineet.com/g'  /etc/apache2/sites-avail
 
 sudo sed -i -- 's/ServerName braineet.com/ServerName braineet.com'"\n"'ServerAlias www.braineet.com/g'  /etc/apache2/sites-available/braineet.conf
 
+sudo sed -ie -- 's/#!\/bin\/sh/#!\/bin\/sh\nsudo git --work-tree=\/var\/www\/ --git-dir=\/var\/repo\/braineet.git checkout HEAD^/g'  /var/repo/braineet.git/hooks/post-receive
 
 sudo service apache2 restart
 
