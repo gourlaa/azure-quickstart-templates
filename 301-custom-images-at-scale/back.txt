@@ -1,0 +1,3419 @@
+<?php
+
+namespace Braineet\DataBundle\Controller;
+
+use Braineet\DataBundle\Entity\Brainee;
+use Braineet\DataBundle\Entity\Comment;
+use Braineet\DataBundle\Entity\Company;
+use Braineet\DataBundle\Entity\Tag;
+use Braineet\DataBundle\Service\Activity\Activity;
+use Braineet\DataBundle\Service\Authentication\Authentication;
+use Braineet\DataBundle\Service\Notification\Notification;
+use Braineet\StorageBundle\Form\Type\PhotoType;
+use Doctrine\Common\Collections\ArrayCollection;
+use Doctrine\Common\Collections\Collection;
+use Doctrine\ORM\EntityManager;
+use Facebook\FacebookJavaScriptLoginHelper;
+use Facebook\FacebookRequest;
+use Facebook\FacebookRequestException;
+use Facebook\FacebookSession;
+use Facebook\GraphObject;
+use Facebook\GraphUser;
+use Facebook\HttpClients\FacebookCurlHttpClient;
+use FOS\OAuthServerBundle\Util\Random;
+use FOS\RestBundle\Controller\FOSRestController;
+use FOS\UserBundle\Event\FilterUserResponseEvent;
+use FOS\UserBundle\Event\FormEvent;
+use FOS\UserBundle\Event\GetResponseUserEvent;
+use FOS\UserBundle\FOSUserEvents;
+use FOS\UserBundle\Model\UserInterface;
+use FOS\UserBundle\Model\UserManagerInterface;
+use FOS\UserBundle\Security\LoginManager;
+use JMS\Serializer\SerializerBuilder;
+use JMS\Serializer\SerializationContext;
+use Liip\ImagineBundle\Imagine\Data\DataManager;
+use OAuth\ServerBundle\Entity\Client;
+use Symfony\Component\EventDispatcher\EventDispatcherInterface;
+use Symfony\Component\Form\Form;
+use Symfony\Component\Form\FormBuilder;
+use Symfony\Component\Form\FormError;
+use Symfony\Component\Form\FormInterface;
+use Symfony\Component\Form\Test\FormIntegrationTestCase;
+use Symfony\Component\Security\Core\Exception\AccessDeniedException;
+use Symfony\Component\HttpFoundation\File\UploadedFile;
+use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\RedirectResponse;
+use \Symfony\Bundle\FrameworkBundle\Controller\Controller;
+use Symfony\Component\HttpFoundation\Request;
+use Symfony\Component\HttpFoundation\Response;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
+use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
+use Symfony\Component\Security\Core\Authentication\Token\AnonymousToken;
+use Symfony\Component\Security\Core\Encoder\EncoderFactory;
+use Symfony\Component\Security\Core\Encoder\EncoderFactoryInterface;
+use Symfony\Component\Security\Core\Encoder\PlaintextPasswordEncoder;
+use Symfony\Component\Security\Core\Util\SecureRandom;
+use User\UserBundle\Entity\Brand;
+use User\UserBundle\Entity\Connection;
+use User\UserBundle\Entity\Employee;
+use User\UserBundle\Entity\Invitation;
+use User\UserBundle\Entity\Platform;
+use User\UserBundle\Entity\Subscription;
+use User\UserBundle\Entity\User;
+use FOS\RestBundle\Controller\Annotations\Get;
+use FOS\RestBundle\Controller\Annotations\Patch;
+use FOS\RestBundle\Controller\Annotations\View;
+use FOS\RestBundle\Request\ParamFetcher;
+use FOS\RestBundle\Controller\Annotations\RequestParam;
+use FOS\RestBundle\Controller\Annotations\QueryParam;
+use FOS\RestBundle\View\View as ViewResponse;
+use User\UserBundle\Entity\UserBadge;
+use User\UserBundle\Entity\UserBrand;
+use User\UserBundle\Entity\UserPlatform;
+use User\UserBundle\Entity\UserView;
+use User\UserBundle\Form\Type\AddressFormType;
+
+/**
+ * Class UsersController
+ * @package Braineet\DataBundle\Controller
+ */
+class UsersController extends FOSRestController
+{
+    /**
+     * @View(serializerGroups={"Default", "User"})
+     * @QueryParam(name="page", requirements="\d+", default="1", description="Page of the overview.")
+     * @QueryParam(name="limit", requirements="\d+", default="5", description="Limit of the overview.")
+     */
+    public function getUsersAction(Request $request, ParamFetcher $paramFetcher)
+    {
+        $page = $paramFetcher->get('page');
+        $criteria = array('active' => true);
+        if ($this->getPlatform($request)) {
+            $criteria['isBrand'] = false;
+        }
+        $users = $this->getDoctrine()
+            ->getRepository('UserBundle:User')
+            ->findBy($criteria, array('id' => 'asc'), 5, 5 * ($page - 1));
+        return $this->view($users, 200);
+    }
+
+    /**
+     * @View(serializerGroups={"Default", "User"})
+     * @QueryParam(name="page", requirements="\d+", default="1", description="Page of the overview.")
+     * @QueryParam(name="limit", requirements="\d+", default="5", description="Limit of the overview.")
+     *
+     */
+    public function getUsersFollowingsAction(Request $request, User $user, ParamFetcher $paramFetcher)
+    {
+        $page = $paramFetcher->get('page');
+        $users = $this->getDoctrine()
+            ->getRepository('UserBundle:User')->setPlatform($this->getPlatform($request))
+            ->findFollowings($user, 10,  $page);
+        if ($this->getUser() != null) {
+            /** @var User $user_tmp */
+            foreach ($users as $user_tmp) {
+                $user_tmp->setIsFollowing($this->getUser()->getFollowings()->contains($user_tmp));
+            }
+        }
+        return $this->view($users, 200);
+    }
+
+    /**
+     * @View(serializerGroups={"Default", "Company"})
+     */
+    public function postUsersRequestAction(Request $request)
+    {
+        $company = new Company();
+        $form = $this->createFormBuilder($company)
+            ->add('name')
+            ->add('language')
+            ->add('email')
+            ->add('phone')
+            ->add('isStartup', null, array('required' => false))
+            ->getForm();
+        $form->handleRequest($request);
+
+        if ($form->isValid()) {
+            $em = $this->getDoctrine()->getManager();
+            if ($em->getRepository('UserBundle:User')->findOneBy(array('email' => $company->getEmail()))) {
+                throw new HttpException(409, 'Email already used.');
+            }
+            $tag = $em->getRepository('DataBundle:Tag')->findOneBy(array('name' => $this->getByTagName($company->getName())));
+            if ($tag !== null && $tag->getBrand() && $tag->getBrand()->getUser() && $tag->getBrand()->getUser()->getCompany() !== null) {
+                throw new HttpException(408, 'Name already used.');
+            }
+            $company->setActive(1);
+            $em->persist($company);
+            $em->flush();
+
+            $this->get('activehost.service')->postEvent("presignup company", $company->getEmail(),
+                json_encode(array(
+                    'name' => $company->getName(),
+                    'phone' => $company->getPhone(),
+                    'language' => $company->getLanguage()
+                    )));
+
+            $subject = '[Pré-Inscription] Une nouvelle société s\'est pré-inscrit.';
+            $textBody = 'Une société: '.$company->getName().' est en cours d\'inscription: email: '.$company->getEmail() . ', phone' . $company->getPhone() .', isStartup: '.$company->getIsStartup();
+            $htmlBody = 'Une société: '.$company->getName().' est en cours d\'inscription: email: '.$company->getEmail() . ', phone' . $company->getPhone() .', isStartup: '.$company->getIsStartup();
+            $this->get('asynctask.service')->pushEmail('thebraineetbros@braineet.com', $subject, $textBody, $htmlBody, 'thebraineetbros@braineet.com', 'The Braineet Bros');
+
+            return $this->view($company, 200);
+        }
+        return $this->view($form, 400);
+    }
+
+    /**
+     * @View(serializerGroups={"Default", "User"})
+     * @QueryParam(name="page", requirements="\d+", default="1", description="Page of the overview.")
+     * @QueryParam(name="limit", requirements="\d+", default="5", description="Limit of the overview.")
+     *
+     */
+    public function getUsersFollowersAction(Request $request, User $user, ParamFetcher $paramFetcher)
+    {
+        $page = $paramFetcher->get('page');
+        $users = $this->getDoctrine()
+            ->getRepository('UserBundle:User')->setPlatform($this->getPlatform($request))
+            ->findFollowers($user, 10,  $page);
+        if ($this->getUser() != null) {
+            /** @var User $user_tmp */
+            foreach ($users as $user_tmp) {
+                $user_tmp->setIsFollowing($this->getUser()->getFollowings()->contains($user_tmp));
+            }
+        }
+        return $this->view($users, 200);
+    }
+
+
+
+    /**
+     * @View(serializerGroups={"Default", "User"})
+     */
+    public function getUsersSearchAction(Request $request, $text, ParamFetcher $paramFetcher)
+    {
+        $users = $this->getDoctrine()
+            ->getRepository('UserBundle:User')->setPlatform($this->getPlatform($request))
+            ->findOneByNameOrTag($text, 5, $this->getUser());
+        return $this->view($users, 200);
+    }
+
+    /**
+     * @param Request $request
+     * @param $token
+     * @return null|Response
+     * @throws \Symfony\Component\HttpKernel\Exception\NotFoundHttpException
+     * @Patch("/users/verify/{token}")
+     * @View(serializerGroups={"Default", "User","UserMe", "UserPrivate", "UserDetails", "TagLastBrainee", "Employee"})
+     */
+    public function patchUsersVerifyAction(Request $request, $token)
+    {
+        /** @var EntityManager $em */
+        $em = $this->getDoctrine()->getManager();
+        /** @var $userManager UserManagerInterface */
+        $userManager = $this->container->get('fos_user.user_manager');
+
+        /** @var User $user */
+        $user = $userManager->findUserByConfirmationToken($token);
+
+        if (null === $user) {
+            throw new NotFoundHttpException(sprintf('The user with confirmation token "%s" does not exist', $token));
+        }
+
+        /** @var $dispatcher EventDispatcherInterface */
+        $dispatcher = $this->container->get('event_dispatcher');
+
+        $user->setConfirmationToken(null);
+        $user->setConfirmation(false);
+        $user->setIsFakeEmail(false);
+
+        $event = new GetResponseUserEvent($user, $request);
+        $dispatcher->dispatch(FOSUserEvents::REGISTRATION_CONFIRM, $event);
+        $user->setEnabled(true);
+        $em->persist($user);
+
+
+        $authentification = $this->get('authentication.service');
+
+        if ($user->getIsBrainer()) {
+            $directory = "User";
+        } else {
+            $directory = "UserPlatform";
+        }
+        if ($user->getIsBrand() == false) {
+            if ($user->getLanguage() == 'fr') {
+                $template = $this->get('twig')->loadTemplate('UserBundle:'.$directory.':fr.welcome.email.html.twig');
+            } else {
+                $template = $this->get('twig')->loadTemplate('UserBundle:'.$directory.':en.welcome.email.html.twig');
+            }
+            $properties = array (
+                "distinct_id" => $user->getEmail(),
+                "token" => "f636913b89694f1c21ea9b179b8d6726",
+                "time" => time(),
+                "campaign" => "welcome by email",
+                'language' => $user->getLanguage()
+            );
+            $trackingCode = base64_encode(json_encode(array("event" => "e-mail opened",
+                "properties" => $properties)));
+            $mp = \Mixpanel::getInstance("f636913b89694f1c21ea9b179b8d6726");
+            $mp->track("e-mail sent", $properties);
+
+            $context = array('user' => $user, 'urlTracking' => $trackingCode);
+            if ($user->getIsBrainer() == false) {
+                $context['platform'] = $user->getUserBrand()->getBrand()->getPlatform();
+            }
+            $subject = $template->renderBlock('subject', $context);
+            $textBody = $template->renderBlock('body_text', $context);
+            $htmlBody = $template->renderBlock('body_html', $context);
+
+            $this->get('asynctask.service')->pushEmail($user->getEmail(), $subject, $textBody, $htmlBody, 'thebraineetbros@braineet.com', 'The Braineet Bros');
+        } else if ($user->getIsBrand()) {
+            $subject = '[Validation] Une nouvelle société a confirmé son compte.';
+            $textBody = 'Une société: '.$user->getFullName().' a confirmé son compte: email: '.$user->getEmail();
+            $htmlBody = 'Une société: '.$user->getFullName().' a confirmé son compte: email: '.$user->getEmail();
+            $this->get('asynctask.service')->pushEmail('thebraineetbros@braineet.com', $subject, $textBody, $htmlBody, 'thebraineetbros@braineet.com', 'The Braineet Bros');
+        }
+        $userManager->updateUser($user);
+        $em->flush();
+        $this->get('exchange.push.service')->pushMe($user->getUniqueId(), 'edit', $user);
+
+        $user->setNbBrainees((int)$em->getRepository('DataBundle:Brainee')->setPlatform($this->getPlatform($request))->countAllBraineesOfUser($user->getId()));
+        $user->setNbInteractions((int)$em->getRepository('DataBundle:Brainee')->setPlatform($this->getPlatform($request))->countAllBraineesUserInteracted($user->getId(), "likedCommented", $user->getActiveSort()));
+        if ($request->headers->get('version')) {
+            $version = floatval($request->headers->get('version'));
+        } else{
+            $version = 2.1;
+        }
+        if ($request->headers->get('platform') || $version < 2.1) {
+            $nb_notifications = (int)$em->getRepository('DataBundle:Notification')->setPlatform($this->getPlatform($request))
+                ->setVersion($this->getVersion($request))
+                ->countAllNotifications($user->getId());
+            $user->setNbNotification($nb_notifications);
+            $user->setNbFollowers((int)$em->getRepository('UserBundle:User')->setPlatform($this->getPlatform($request))->countFollowers($user));
+            $user->setNbFollowings((int)$em->getRepository('UserBundle:User')->setPlatform($this->getPlatform($request))->countFollowings($user));
+        }
+        if ($user->getIsBrand()) {
+            $user->getBrand()->setNbChallengeSinceLastYear(((int)$em->getRepository('DataBundle:Challenge')->setPlatform($this->getPlatform($request))->getNbChallengeLastYearByBrand($user->getBrand()->getId())));
+        }
+        if ($user->getEmployee()) {
+            $user->getEmployee()->getBrand()->setNbChallengeSinceLastYear(((int)$em->getRepository('DataBundle:Challenge')->setPlatform($this->getPlatform($request))->getNbChallengeLastYearByBrand($user->getEmployee()->getBrand()->getId())));
+        }
+
+        $context = SerializationContext::create();
+        $context->setVersion($version);
+
+        return $this->view(array('token' => $authentification->authenticate($user), 'user' => $user), 200)->setSerializationContext($context);
+    }
+
+    /**
+     * @View(serializerGroups={"Default", "User", "UserLastBrainee"})
+     * @Get("users/suggest")
+     * @QueryParam(name="page", requirements="\d+", default="1", description="Page of the overview.")
+     * @QueryParam(name="nb", requirements="\d+", default="3", description="Nbr of result of the overview.")
+     */
+    public function getUsersSuggestAction(Request $request, ParamFetcher $paramFetcher)
+    {
+        $em = $this->getDoctrine()->getManager();
+        $page = $paramFetcher->get('page');
+        $nb = $paramFetcher->get('nb');
+        if ($this->getUser() != null) {
+            /** @var User $user */
+            $user = $this->getUser();
+            if ($user->getLastLogin() && $nb == 3) {
+                $page += $user->getLastLogin()->getTimestamp() % 10;
+            }
+            $users = $this->getDoctrine()
+                ->getRepository('UserBundle:User')->setPlatform($this->getPlatform($request))
+                ->findOneByRelation($this->getUser()->getId(), $page, $nb, 0);
+            if (count($users) < $nb) {
+                $list_ids = "";
+                /** @var User $user */
+                foreach ($users as $user) {
+                    $list_ids .= ", " . $user->getId();
+                }
+                $all_users = $this->getDoctrine()
+                    ->getRepository('UserBundle:User')->setPlatform($this->getPlatform($request))
+                    ->findAllCountrySuggestUser($this->getUser()->getId(), count($users), $page, $list_ids, $nb, 0);
+                /** User $user */
+                foreach ($all_users as $user) {
+                    array_push($users, $user);
+                }
+                if (count($users) < $nb) {
+                    $all_users = $this->getDoctrine()
+                        ->getRepository('UserBundle:User')->setPlatform($this->getPlatform($request))
+                        ->findAllSuggestUser($this->getUser()->getId(), count($users), $page, $list_ids, $nb, 0);
+                    /** User $user */
+                    foreach ($all_users as $user) {
+                        array_push($users, $user);
+                    }
+                }
+            }
+            /** @var User $user_tmp */
+            foreach ($users as $user_tmp) {
+                $user_tmp->setNbBrainees($em->getRepository('DataBundle:Brainee')->setPlatform($this->getPlatform($request))->countAllBraineesOfUser($user_tmp->getId()));
+                $user_tmp->setIsFollowing($this->getUser()->getFollowings()->contains($user_tmp));
+            }
+        } else {
+            $translatable = $this->get('gedmo.listener.translatable');
+            $users = $this->getDoctrine()
+                ->getRepository('UserBundle:User')
+                ->findBy(array('isBrand' => 0, 'language' => $translatable->getTranslatableLocale()), array('certified' => 'DESC', 'count' => 'DESC'), $nb, $nb * ($page - 1));
+            if (count($users) < $nb) {
+                $users = $this->getDoctrine()
+                    ->getRepository('UserBundle:User')
+                    ->findBy(array('isBrand' => 0), array('certified' => 'DESC', 'count' => 'DESC'), $nb - count($users), $nb * ($page - 1));
+            }
+            foreach ($users as $user) {
+                $user->setNbBrainees($em->getRepository('DataBundle:Brainee')->countAllBraineesOfUser($user->getId()));
+            }
+        }
+
+
+        return $this->view($users, 200);
+    }
+
+    /**
+     * @View(serializerGroups={"Default", "User","UserMe", "UserPrivate","UserDetails", "TagLastBrainee", "Employee"})
+     */
+    public function postUsersAction(Request $request)
+    {
+        /** @var $formFactory \FOS\UserBundle\Form\Factory\FactoryInterface */
+        $formFactory = $this->container->get('fos_user.registration.form.factory');
+        /** @var $userManager \FOS\UserBundle\Model\UserManagerInterface */
+        $userManager = $this->container->get('fos_user.user_manager');
+        /** @var $dispatcher \Symfony\Component\EventDispatcher\EventDispatcherInterface */
+        $dispatcher = $this->container->get('event_dispatcher');
+
+        /** @var User $user */
+        $user = $userManager->createUser();
+        $user->addRole("ROLE_USER");
+
+        $event = new GetResponseUserEvent($user, $request);
+        $dispatcher->dispatch(FOSUserEvents::REGISTRATION_INITIALIZE, $event);
+
+        $form = $formFactory->createForm();
+        $form->setData($user);
+
+        $form->handleRequest($request);
+        if ($form->isValid()) {
+            $plainPassword = $user->getPlainPassword();
+            $em = $this->getDoctrine()->getManager();
+            $authentification = $this->get('authentication.service');
+            $company = $em->getRepository('DataBundle:Company')->findOneBy(array('email' => $user->getEmail()));
+            if ($company !== null) {
+                throw new HttpException(400);
+            }
+
+            $user->addCountry($user->getCountry());
+            $grav_url = "http://www.gravatar.com/avatar/" . md5( strtolower( trim( $user->getEmail() ) ) ) . "?d=404&s=250";
+            $extUrl = 'upload/profile/'.md5(time() . '_' . uniqid());
+            if ($this->urlExists($grav_url)) {
+                try {
+                    $pictureUrl = $this->getPhotoUploader()->uploadUrlUser($extUrl, $grav_url);
+                    $user->setPicture($pictureUrl['url']);
+                    $user->setExtPicture($pictureUrl['extension']);
+                } catch(\Exception $ex) {
+                }
+            }
+            if ($request->headers->get('platform')) {
+                $platform = $em->getRepository('UserBundle:Platform')->findOneBy(array('name' => $request->headers->get('platform')));
+                if ($platform !== null) {
+                    $user->setIsBrainer(false);
+                    $userBrand = new UserBrand();
+                    $userBrand->setBrand($platform->getBrand());
+                    $user->setUserBrand($userBrand);
+                    $em->persist($userBrand);
+                }
+            }
+            $em->persist($user);
+
+            if ($request->headers->get('platform') == "auchan_tmp") {
+                $this->get('auchan.rw.service')->create($user, $plainPassword);
+            }
+
+            if ($user->getInvitation() == null) {
+                /** @var Invitation $invitation */
+                $invitation = $em->getRepository('UserBundle:Invitation')->findOneBy(array('email' => $user->getEmail()));
+                $user->setInvitation($invitation);
+            }
+            if (strpos($user->getEmail(), "@essec") !== false) {
+                $user->setReceivedChallenges(0);
+                $user->setReceivedInformations(0);
+                $user->setReceivedRevival(0);
+                $user->setReceivedNotifications(3);
+                $user->setIsEssec(true);
+                $em->persist($user);
+            }
+            if ($user->getInvitation() !== null) {
+                /** @var Notification $notificationService */
+                $notificationService = $this->get('notification.service');
+                $notificationService->notifiedWithUsers('joinInvitation', $user->getInvitation()->getAuthor(), $user);
+                $invitation = $user->getInvitation();
+                $invitation->setSent(true);
+                $em->persist($invitation);
+                $invitationAuthor = $user->getInvitation()->getAuthor();
+                $invitationAuthor->setCount($invitationAuthor->getCount() + 100);
+                $em->persist($invitationAuthor);
+                if ($invitationAuthor->getId() == 10370) {
+                    $user->setReceivedChallenges(0);
+                    $user->setReceivedInformations(0);
+                    $user->setReceivedRevival(0);
+                    $user->setReceivedNotifications(3);
+                    $em->persist($user);
+                }
+                $scoringService = $this->get('scoring.service');
+                $scoringService->actualizeStatus($invitationAuthor);
+
+                $this->get('exchange.push.service')->pushMe($invitationAuthor->getUniqueId(), 'score', $invitationAuthor);
+                $this->get('user.badge.service')->badgeAlone('invitationSignup', $invitationAuthor);
+
+                if (($invitationAuthor->getIsBrand() || $invitationAuthor->getEmployee()) && $invitation->getEmployeeLevel()) {
+                    $employee = new Employee();
+                    $employee->setUser($user);
+                    $employee->setLevel($invitation->getEmployeeLevel());
+                    if ($invitationAuthor->getIsBrand()) {
+                        $employee->setBrand($invitationAuthor->getBrand());
+                    } else {
+                        $employee->setBrand($invitationAuthor->getEmployee()->getBrand());
+                    }
+                    $em->persist($employee);
+                }
+
+            }
+            $invitations = $em->getRepository('UserBundle:Invitation')->findBy(array('email' => $user->getEmail()));
+            /** @var Invitation $invitation */
+            foreach ($invitations as $invitation) {
+                $invitation->setSent(true);
+                $em->persist($invitation);
+            }
+
+            $connections = $em->getRepository('UserBundle:Connection')->findBy(array('email' => $user->getEmail()));
+            /** @var Connection $connection */
+            foreach ($connections as $connection) {
+                $connection->setUser($user);
+                $em->persist($connection);
+                /** @var User $userConnection  */
+                foreach ($connection->getUsers() as $userConnection)
+                {
+                    $notificationService = $this->get('notification.service');
+                    /** @var Notification $notificationService */
+                    if ($user->getId() != $userConnection->getId() && ($user->getInvitation() != null && $user->getInvitation()->getAuthor()->getId() != $userConnection->getId())) {
+                        if ($user->getInvitation() == null || $user->getInvitation()->getAuthor()->getId() != $userConnection->getId()) {
+                            $notificationService->notifiedWithUsers('join', $userConnection, $user);
+                        }
+                    }
+                }
+            }
+            $event = new FormEvent($form, $request);
+            $dispatcher->dispatch(FOSUserEvents::REGISTRATION_SUCCESS, $event);
+            $user->setEnabled(true);
+            $userManager->updateUser($user);
+            $em->flush();
+            $this->get('activehost.service')->postEvent("signup", $user->getEmail());
+            $this->get('prerender.service')->cache("https://www.braineet.com/profiles/".$user->getId());
+
+            if ($user->getInvitation() !== null) {
+                $invitationAuthor = $user->getInvitation()->getAuthor();
+                $scoringService = $this->get('scoring.service');
+                $scoringService->actualizeStatus($invitationAuthor);
+                $em->flush();
+                $this->get('exchange.push.service')->pushMe($invitationAuthor->getUniqueId(), 'score', $invitationAuthor);
+            }
+
+            $context = SerializationContext::create();
+            if ($request->headers->get('version')) {
+                $version = floatval($request->headers->get('version'));
+            } else{
+                $version = 2.1;
+            }
+            $context->setVersion($version);
+            if ($request->headers->get('platform')) {
+                $context->setGroups(array("Default", "User","UserMe", "UserPrivate", "UserDetails", "Employee"));
+            }
+
+
+            return $this->view(array('token' => $authentification->authenticate($user), 'user' => $user), 200)->setSerializationContext($context);
+        }
+        return $this->view($form, 400);
+    }
+
+    /**
+     * @View(serializerGroups={"Default", "UserReceived"})
+     */
+    public function getUsersReceivedAction(Request $request)
+    {
+        if ($request->get('token')){
+            $em = $this->getDoctrine()->getManager();
+            $user = $em->getRepository('UserBundle:User')->findOneBy(array('uniqueId' => $request->get('token')));
+            if ($user != null) {
+                return $this->view($user, 200);
+            }
+        }
+        throw new HttpException(400, 'User not found');
+    }
+
+    /**
+     * @View(serializerGroups={"Default", "Platform"})
+     */
+    public function getUsersPlatformAction($name)
+    {
+        $em = $this->getDoctrine()->getManager();
+        $platform = $em->getRepository('UserBundle:Platform')->findOneBy(array('name' => $name)) ;
+        if ($platform == null) {
+            throw new HttpException(400);
+        }
+        return $this->view($platform, 200);
+    }
+
+    private function base64url_decode($data) {
+        return base64_decode(str_pad(strtr($data, '-_', '+/'), strlen($data) % 4, '=', STR_PAD_RIGHT));
+    }
+
+    private function generatePassword($length = 8) {
+        $chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+        $count = mb_strlen($chars);
+
+        for ($i = 0, $result = ''; $i < $length; $i++) {
+            $index = rand(0, $count - 1);
+            $result .= mb_substr($chars, $index, 1);
+        }
+
+        return $result;
+    }
+
+    /**
+     * @View(serializerGroups={"Default", "User","UserMe", "UserPrivate","UserDetails", "TagLastBrainee", "Employee"})
+     */
+    public function postUsersSsoAction(Request $request)
+    {
+        $token = $request->get('token');
+
+        $name = $request->get('tag');
+        if (!$name) {
+            throw new HttpException(400);
+        }
+        $authentification = $this->get('authentication.service');
+        $em = $this->getDoctrine()->getManager();
+        /** @var Tag $tag */
+        $tag = $em->getRepository('DataBundle:Tag')->findOneBy(array('name' => $name)) ;
+        if ($tag == null || $tag->getBrand() == null || $tag->getBrand()->getUser()->getCompany()->getPackageId() < 3) {
+            throw new HttpException(400);
+        }
+
+        $salted = $tag->getBrand()->getSsoKey() . $tag->getName();
+        $hash = hash('sha1', $salted, true);
+        $saltedHash = substr($hash,0,16);
+        $iv = "OpenSSL for Ruby";
+
+        $encryptedData = $this->base64url_decode(urldecode($token));
+
+        $cipher = mcrypt_module_open(MCRYPT_RIJNDAEL_128,'','cbc','');
+        mcrypt_generic_init($cipher, $saltedHash, $iv);
+        $decryptedData = mdecrypt_generic($cipher, $encryptedData);
+        mcrypt_generic_deinit($cipher);
+
+        $decryptedData = preg_replace( "/\p{Cc}*$/u", "", $decryptedData);
+        $objUser = json_decode($decryptedData);
+
+        /** @var $userManager \FOS\UserBundle\Model\UserManagerInterface */
+        $userManager = $this->container->get('fos_user.user_manager');
+        $em = $this->getDoctrine()->getManager();
+        if (!isset($objUser->uid)) {
+            throw new HttpException(400);
+        }
+
+        /** @var UserBrand $userBrand */
+        $userBrand = $em->getRepository('UserBundle:UserBrand')->findOneBy(array('uid' => $objUser->uid, 'brand' => $tag->getBrand()->getId()));
+        if ($userBrand) {
+            $user = $userBrand->getUser();
+            $date = new \DateTime;
+            $beforeLast = $user->getLastLogin();
+            $user->setLastLogin($date);
+            $em->persist($user);
+            $em->flush();
+            $user->setLastLogin($beforeLast);
+        } else  {
+            if (!isset($objUser->first_name) || !isset($objUser->last_name) || !isset($objUser->email)) {
+                throw new HttpException(400);
+            }
+
+            /** @var User $user */
+            $user = $userManager->createUser();
+            $password = $this->generatePassword();
+            $user->setPlainPassword($password);
+            $user->setFirstName($objUser->first_name);
+            $user->setLastName($objUser->last_name);
+            $user->setEmail($objUser->email);
+            if ($tag->getBrand()->getPlatform()) {
+                $user->setIsBrainer(false);
+            }
+            // $objUser->country
+            $country = $em->getRepository('UserBundle:Country')->findOneBy(array('code' => strtoupper($objUser->country)));
+            if ($country == null) {
+                throw new HttpException(400);
+            }
+            $user->setCountry($country);
+            $user->addRole("ROLE_USER");
+
+            $haveUser = $em->getRepository('UserBundle:User')->findOneBy(array('email' => $objUser->email));
+            if ($haveUser !== null) {
+                throw new HttpException(409);
+            }
+
+            if (isset($objUser->language) && $objUser->language == 'fr' || $objUser->language == 'en') {
+                $user->setLanguage($objUser->language);
+            } else {
+                throw new HttpException(400);
+            }
+            if (isset($objUser->gender) && $objUser->gender == 'men') {
+                $user->setGender(0);
+            } else if (isset($objUser->gender) && $objUser->gender == 'women') {
+                $user->setGender(1);
+            }
+            if (isset($objUser->age) && $objUser->age) {
+                $year = new \Datetime($objUser->age. ' years ago');
+                $user->setAge($year);
+            }
+            if (isset($objUser->description) && $objUser->description) {
+                $user->setDescription($objUser->description);
+            }
+            if (isset($objUser->city) && $objUser->city) {
+                $user->setDescription($objUser->city);
+            }
+            if (isset($objUser->job_title) && $objUser->job_title) {
+                $user->setDescription($objUser->job_title);
+            }
+            if (isset($objUser->job_company) && $objUser->job_company) {
+                $user->setDescription($objUser->job_company);
+            }
+            $userBrand = new UserBrand();
+            $userBrand->setBrand($tag->getBrand());
+            $userBrand->setUid($objUser->uid);
+            $userBrand->setUser($user);
+            $em->persist($userBrand);
+
+            $company = $em->getRepository('DataBundle:Company')->findOneBy(array('email' => $user->getEmail()));
+            if ($company !== null) {
+                throw new HttpException(409);
+            }
+
+            $user->addCountry($user->getCountry());
+            $user->setEnabled(true);
+            if (isset($objUser->avatar_url)) {
+                $grav_url = $objUser->avatar_url;
+            } else {
+                $grav_url = "http://www.gravatar.com/avatar/" . md5( strtolower( trim( $user->getEmail() ) ) ) . "?d=404&s=250";
+            }
+            $extUrl = 'upload/profile/'.md5(time() . '_' . uniqid());
+            if ($this->urlExists($grav_url)) {
+                try {
+                    $pictureUrl = $this->getPhotoUploader()->uploadUrlUser($extUrl, $grav_url);
+                    $user->setPicture($pictureUrl['url']);
+                    $user->setExtPicture($pictureUrl['extension']);
+                } catch(\Exception $ex) {
+                }
+            }
+            if (isset($objUser->cover_url)) {
+                $cover_url = $objUser->cover_url;
+                $extUrl = 'upload/cover/user/'.md5(time() . '_' . uniqid());
+                if ($this->urlExists($cover_url)) {
+                    try {
+                        $pictureUrl = $this->getPhotoUploader()->uploadUrlCover($extUrl, $cover_url);
+                        $user->setCover($pictureUrl['url']);
+                        $user->setExtCover($pictureUrl['extension']);
+                    } catch(\Exception $ex) {
+                    }
+                }
+            }
+            $user->setConfirmationToken(null);
+            $user->setConfirmation(false);
+            $user->setIsFakeEmail(false);
+            $em->persist($user);
+
+
+
+            $em->persist($user);
+            $invitations = $em->getRepository('UserBundle:Invitation')->findBy(array('email' => $user->getEmail()));
+            /** @var Invitation $invitation */
+            foreach ($invitations as $invitation) {
+                $invitation->setSent(true);
+                $em->persist($invitation);
+            }
+
+            $connections = $em->getRepository('UserBundle:Connection')->findBy(array('email' => $user->getEmail()));
+            /** @var Connection $connection */
+            foreach ($connections as $connection) {
+                $connection->setUser($user);
+                $em->persist($connection);
+                /** @var User $userConnection  */
+                foreach ($connection->getUsers() as $userConnection)
+                {
+                    $notificationService = $this->get('notification.service');
+                    /** @var Notification $notificationService */
+                    if ($user->getId() != $userConnection->getId() && ($user->getInvitation() != null && $user->getInvitation()->getAuthor()->getId() != $userConnection->getId())) {
+                        if ($user->getInvitation() == null || $user->getInvitation()->getAuthor()->getId() != $userConnection->getId()) {
+                            $notificationService->notifiedWithUsers('join', $userConnection, $user);
+                        }
+                    }
+                }
+            }
+            if ($user->getLanguage() == 'fr') {
+                $template = $this->get('twig')->loadTemplate('UserBundle:UserPlatform:fr.welcome_password.email.html.twig');
+            } else {
+                $template = $this->get('twig')->loadTemplate('UserBundle:UserPlatform:en.welcome_password.email.html.twig');
+            }
+            $properties = array (
+                "distinct_id" => $user->getEmail(),
+                "token" => "f636913b89694f1c21ea9b179b8d6726",
+                "time" => time(),
+                "campaign" => "welcome by email",
+                'language' => $user->getLanguage()
+            );
+            $trackingCode = base64_encode(json_encode(array("event" => "e-mail opened",
+                "properties" => $properties)));
+            $mp = \Mixpanel::getInstance("f636913b89694f1c21ea9b179b8d6726");
+            $mp->track("e-mail sent", $properties);
+
+            $context = array('user' => $user, 'password' => $password, 'urlTracking' => $trackingCode);
+            if ($tag->getBrand()->getPlatform()) {
+                $context['platform'] = $tag->getBrand()->getPlatform();
+            }
+            $subject = $template->renderBlock('subject', $context);
+            $textBody = $template->renderBlock('body_text', $context);
+            $htmlBody = $template->renderBlock('body_html', $context);
+
+            $this->get('asynctask.service')->pushEmail($user->getEmail(), $subject, $textBody, $htmlBody, 'thebraineetbros@braineet.com', 'The Braineet Bros');
+            $em->flush();
+        }
+
+        $context = SerializationContext::create();
+        if ($request->headers->get('version')) {
+            $version = floatval($request->headers->get('version'));
+        } else{
+            $version = 2.1;
+        }
+        $context->setVersion($version);
+
+
+        return $this->view(array('token' => $authentification->authenticate($user), 'user' => $user), 200)->setSerializationContext($context);
+    }
+
+    /**
+     * @View(serializerGroups={"Default", "User","UserMe", "UserPrivate","UserDetails", "TagLastBrainee", "Employee"})
+     */
+    public function postUsersWidgetAction(Request $request)
+    {
+        $objUser = $request->get('user');
+        $name = $request->get('tag');
+        if (!$name) {
+            throw new HttpException(400);
+        }
+        $authentification = $this->get('authentication.service');
+        $em = $this->getDoctrine()->getManager();
+        /** @var Tag $tag */
+        $tag = $em->getRepository('DataBundle:Tag')->findOneBy(array('name' => $name)) ;
+        if ($tag == null || $tag->getBrand() == null) {
+            throw new HttpException(400);
+        }
+
+        $objUser = json_decode($objUser);
+
+        /** @var $userManager \FOS\UserBundle\Model\UserManagerInterface */
+        $userManager = $this->container->get('fos_user.user_manager');
+        $em = $this->getDoctrine()->getManager();
+        if (!isset($objUser->uid)) {
+            throw new HttpException(400);
+        }
+
+        /** @var UserBrand $userBrand */
+        $userBrand = $em->getRepository('UserBundle:UserBrand')->findOneBy(array('uid' => $objUser->uid, 'brand' => $tag->getBrand()->getId()));
+        if ($userBrand) {
+            $user = $userBrand->getUser();
+            $date = new \DateTime;
+            $user->setLastLogin($date);
+            $em->persist($user);
+            $em->flush();
+        } else  {
+            if (!isset($objUser->first_name) || !isset($objUser->last_name) || !isset($objUser->email)) {
+                throw new HttpException(400);
+            }
+
+            /** @var User $user */
+            $user = $userManager->createUser();
+            $password = $this->generatePassword();
+            $user->setPlainPassword($password);
+            $user->setFirstName($objUser->first_name);
+            $user->setLastName($objUser->last_name);
+            $user->setEmail($objUser->email);
+            if ($tag->getBrand()->getPlatform()) {
+                $user->setIsBrainer(false);
+            }
+            $country = $em->getRepository('UserBundle:Country')->findOneBy(array('code' => strtoupper($objUser->country)));
+            if ($country == null) {
+                throw new HttpException(400);
+            }
+            $user->setCountry($country);
+            $user->addRole("ROLE_USER");
+
+            $haveUser = $em->getRepository('UserBundle:User')->findOneBy(array('email' => $objUser->email));
+            if ($haveUser !== null) {
+                throw new HttpException(409);
+            }
+
+            if (isset($objUser->language) && $objUser->language == 'fr' || $objUser->language == 'en') {
+                $user->setLanguage($objUser->language);
+            } else {
+                throw new HttpException(400);
+            }
+            if (isset($objUser->gender) && $objUser->gender == 'men') {
+                $user->setGender(0);
+            } else if (isset($objUser->gender) && $objUser->gender == 'women') {
+                $user->setGender(1);
+            }
+            if (isset($objUser->age) && $objUser->age) {
+                $year = new \Datetime($objUser->age. ' years ago');
+                $user->setAge($year);
+            }
+            if (isset($objUser->description) && $objUser->description) {
+                $user->setDescription($objUser->description);
+            }
+            if (isset($objUser->city) && $objUser->city) {
+                $user->setDescription($objUser->city);
+            }
+            if (isset($objUser->job_title) && $objUser->job_title) {
+                $user->setDescription($objUser->job_title);
+            }
+            if (isset($objUser->job_company) && $objUser->job_company) {
+                $user->setDescription($objUser->job_company);
+            }
+            $userBrand = new UserBrand();
+            $userBrand->setBrand($tag->getBrand());
+            $userBrand->setUid($objUser->uid);
+            $userBrand->setUser($user);
+            $em->persist($userBrand);
+
+            $company = $em->getRepository('DataBundle:Company')->findOneBy(array('email' => $user->getEmail()));
+            if ($company !== null) {
+                throw new HttpException(409);
+            }
+
+            $user->addCountry($user->getCountry());
+            $user->setEnabled(true);
+            if (isset($objUser->avatar_url)) {
+                $grav_url = $objUser->avatar_url;
+            } else {
+                $grav_url = "http://www.gravatar.com/avatar/" . md5( strtolower( trim( $user->getEmail() ) ) ) . "?d=404&s=250";
+            }
+            $extUrl = 'upload/profile/'.md5(time() . '_' . uniqid());
+            if ($this->urlExists($grav_url)) {
+                try {
+                    $pictureUrl = $this->getPhotoUploader()->uploadUrlUser($extUrl, $grav_url);
+                    $user->setPicture($pictureUrl['url']);
+                    $user->setExtPicture($pictureUrl['extension']);
+                } catch(\Exception $ex) {
+                }
+            }
+            if (isset($objUser->cover_url)) {
+                $cover_url = $objUser->cover_url;
+                $extUrl = 'upload/cover/user/'.md5(time() . '_' . uniqid());
+                if ($this->urlExists($cover_url)) {
+                    try {
+                        $pictureUrl = $this->getPhotoUploader()->uploadUrlCover($extUrl, $cover_url);
+                        $user->setCover($pictureUrl['url']);
+                        $user->setExtCover($pictureUrl['extension']);
+                    } catch(\Exception $ex) {
+                    }
+                }
+            }
+            $user->setConfirmationToken(null);
+            $user->setConfirmation(false);
+            $user->setIsFakeEmail(false);
+            $em->persist($user);
+
+            $em->persist($user);
+            $invitations = $em->getRepository('UserBundle:Invitation')->findBy(array('email' => $user->getEmail()));
+            /** @var Invitation $invitation */
+            foreach ($invitations as $invitation) {
+                $invitation->setSent(true);
+                $em->persist($invitation);
+            }
+
+            $connections = $em->getRepository('UserBundle:Connection')->findBy(array('email' => $user->getEmail()));
+            /** @var Connection $connection */
+            foreach ($connections as $connection) {
+                $connection->setUser($user);
+                $em->persist($connection);
+                /** @var User $userConnection  */
+                foreach ($connection->getUsers() as $userConnection)
+                {
+                    $notificationService = $this->get('notification.service');
+                    /** @var Notification $notificationService */
+                    if ($user->getId() != $userConnection->getId() && ($user->getInvitation() != null && $user->getInvitation()->getAuthor()->getId() != $userConnection->getId())) {
+                        if ($user->getInvitation() == null || $user->getInvitation()->getAuthor()->getId() != $userConnection->getId()) {
+                            $notificationService->notifiedWithUsers('join', $userConnection, $user);
+                        }
+                    }
+                }
+            }
+            if ($user->getIsBrainer()) {
+                $directory = "User";
+            } else {
+                $directory = "UserPlatform";
+            }
+            if ($user->getLanguage() == 'fr') {
+                $template = $this->get('twig')->loadTemplate('UserBundle:'.$directory.':fr.welcome.email.html.twig');
+            } else {
+                $template = $this->get('twig')->loadTemplate('UserBundle:'.$directory.':en.welcome.email.html.twig');
+            }
+            $properties = array (
+                "distinct_id" => $user->getEmail(),
+                "token" => "f636913b89694f1c21ea9b179b8d6726",
+                "time" => time(),
+                "campaign" => "welcome by email",
+                'language' => $user->getLanguage()
+            );
+            $trackingCode = base64_encode(json_encode(array("event" => "e-mail opened",
+                "properties" => $properties)));
+            $mp = \Mixpanel::getInstance("f636913b89694f1c21ea9b179b8d6726");
+            $mp->track("e-mail sent", $properties);
+
+            $context = array('user' => $user, 'password' => $password, 'urlTracking' => $trackingCode);
+            if ($tag->getBrand()->getPlatform()) {
+                $context['platform'] = $tag->getBrand()->getPlatform();
+            }
+            $subject = $template->renderBlock('subject', $context);
+            $textBody = $template->renderBlock('body_text', $context);
+            $htmlBody = $template->renderBlock('body_html', $context);
+
+            $this->get('asynctask.service')->pushEmail($user->getEmail(), $subject, $textBody, $htmlBody, 'thebraineetbros@braineet.com', 'The Braineet Bros');
+            $em->flush();
+        }
+
+        $context = SerializationContext::create();
+        if ($request->headers->get('version')) {
+            $version = floatval($request->headers->get('version'));
+        } else{
+            $version = 2.1;
+        }
+        $context->setVersion($version);
+
+
+        return $this->view(array('token' => $authentification->authenticate($user), 'user' => $user), 200)->setSerializationContext($context);
+    }
+
+
+    /**
+     * @param Request $request
+     * @return ViewResponse
+     * @throws \Symfony\Component\HttpKernel\Exception\HttpException
+     * @View(serializerGroups={"Default", "User","UserMe", "UserPrivate", "UserDetails", "TagLastBrainee", "Employee"})
+     */
+    public function postUsersCompanyAction(Request $request)
+    {
+        /** @var $formFactory \FOS\UserBundle\Form\Factory\FactoryInterface */
+        $formFactory = $this->container->get('fos_user.registration.form.factory');
+        /** @var $userManager \FOS\UserBundle\Model\UserManagerInterface */
+        $userManager = $this->container->get('fos_user.user_manager');
+        /** @var $dispatcher \Symfony\Component\EventDispatcher\EventDispatcherInterface */
+        $dispatcher = $this->container->get('event_dispatcher');
+
+        /** @var User $user */
+        $user = $userManager->createUser();
+        $user->addRole("ROLE_USER");
+        $user->setIsBrand(true);
+
+        $event = new GetResponseUserEvent($user, $request);
+        $dispatcher->dispatch(FOSUserEvents::REGISTRATION_INITIALIZE, $event);
+
+        $form = $formFactory->createForm();
+        $form->setData($user);
+
+        $form->handleRequest($request);
+
+        if ($form->isValid()) {
+            $authentification = $this->get('authentication.service');
+            $em = $this->getDoctrine()->getManager();
+            if ($user->getPicture() == null) {
+                throw new HttpException(400, 'no picture');
+            }
+
+            $user->setFullName($user->getCompany()->getName());
+            $user->setFirstName($user->getCompany()->getName());
+            $user->setLastName($user->getCompany()->getName());
+            $user->setCertified(false);
+            $user->setIsBrainer(true);
+            $user->setEmail($user->getCompany()->getEmail());
+            $user->setCover('upload/cover/brand/');
+
+            $company = $user->getCompany();
+            $company->setPackageId($form->get("package")->getData());
+            $em->persist($company);
+
+
+            $subscription = new Subscription();
+            $subscription->setPlanId($company->getPackageId());
+            \Stripe\Stripe::setApiKey($this->container->getParameter('stripe_token'));
+            if ($company->getPackageId() == 1) {
+                $plan = 'discover';
+            } else if ($company->getPackageId() == 2) {
+                $plan = 'classic';
+            } else if ($company->getPackageId() == 3) {
+                $plan = 'personalization';
+            } else if ($company->getPackageId() == 4) {
+                $plan = 'private';
+            } else {
+                throw new HttpException(400);
+            }
+
+            try {
+                $customer = \Stripe\Customer::create(array(
+                    "tax_percent" => 20.0,
+                    "plan" => $plan,
+                    "email" => $company->getUser()->getEmail()
+                ));
+            } catch (\Exception $e) {
+                throw new HttpException(400, 'test');
+            }
+            $subscription->setCustomerId($customer->id);
+            $subscriptions = $customer->subscriptions->all(array(
+                'limit'=> 1));
+            /** @var \Stripe\Subscription $sub */
+            foreach ($subscriptions->data as $sub) {
+                $subscription->setSubscriptionId($sub->id);
+            }
+
+            $company->setSubscription($subscription);
+            $em->persist($subscription);
+
+
+            $previousUser = null;
+            $brand = $em->getRepository('UserBundle:Brand')->findOneBy(array('name' => $user->getCompany()->getName()));
+            if ($brand === null) {
+                $brand = new Brand();
+                $tagName = strtolower(preg_replace("/[^a-zA-Z0-9]+/", "", $user->getCompany()->getName()));
+                $replace = array(
+                    'À'=>'A', 'Á'=>'A', 'Â'=>'A', 'Ã'=>'A', 'Ä'=>'Ae', 'Å'=>'A', 'Æ'=>'A', 'Ă'=>'A',
+                    'à'=>'a', 'á'=>'a', 'â'=>'a', 'ã'=>'a', 'ä'=>'ae', 'å'=>'a', 'ă'=>'a', 'æ'=>'ae',
+                    'þ'=>'b', 'Þ'=>'B',
+                    'Ç'=>'C', 'ç'=>'c',
+                    'È'=>'E', 'É'=>'E', 'Ê'=>'E', 'Ë'=>'E',
+                    'è'=>'e', 'é'=>'e', 'ê'=>'e', 'ë'=>'e',
+                    'Ğ'=>'G', 'ğ'=>'g',
+                    'Ì'=>'I', 'Í'=>'I', 'Î'=>'I', 'Ï'=>'I', 'İ'=>'I', 'ı'=>'i', 'ì'=>'i', 'í'=>'i', 'î'=>'i', 'ï'=>'i',
+                    'Ñ'=>'N',
+                    'Ò'=>'O', 'Ó'=>'O', 'Ô'=>'O', 'Õ'=>'O', 'Ö'=>'Oe', 'Ø'=>'O', 'ö'=>'oe', 'ø'=>'o',
+                    'ð'=>'o', 'ñ'=>'n', 'ò'=>'o', 'ó'=>'o', 'ô'=>'o', 'õ'=>'o',
+                    'Š'=>'S', 'š'=>'s', 'Ş'=>'S', 'ș'=>'s', 'Ș'=>'S', 'ş'=>'s', 'ß'=>'ss',
+                    'ț'=>'t', 'Ț'=>'T',
+                    'Ù'=>'U', 'Ú'=>'U', 'Û'=>'U', 'Ü'=>'Ue',
+                    'ù'=>'u', 'ú'=>'u', 'û'=>'u', 'ü'=>'ue',
+                    'Ý'=>'Y',
+                    'ý'=>'y', 'ÿ'=>'y',
+                    'Ž'=>'Z', 'ž'=>'z'
+                );
+                $tagName = strtr($tagName, $replace);
+                $tag = $em->getRepository('DataBundle:Tag')->findOneBy(array('name' => $tagName, 'isBrand' => true));
+                if ($tag === null) {
+                    $tag = new Tag();
+                    $tag->setName($tagName);
+                    $tag->setIsBrand(true);
+                    $tag->setCategory($user->getCategorys()->first());
+                    $tag->setActive(true);
+                    $em->persist($tag);
+                }
+                $brand->setTag($tag);
+            } else {
+                $previousUser = $brand->getUser();
+
+                /** Update value */
+                $notifications = $previousUser->getNotifications();
+                /** @var \Braineet\DataBundle\Entity\Notification $notification */
+                foreach ($notifications as $notification) {
+                    $user->addNotification($notification);
+                }
+                $notifications = $previousUser->getNotificationsTags();
+                /** @var \Braineet\DataBundle\Entity\Notification $notification */
+                foreach ($notifications as $notification) {
+                    $notification->removeUser($previousUser);
+                    $notification->addUser($user);
+                    $em->persist($notification);
+                }
+                $activitys = $previousUser->getUsersActivitys();
+                /** @var \Braineet\DataBundle\Entity\Activity $activity */
+                foreach ($activitys as $activity) {
+                    $activity->removeUser($previousUser);
+                    $activity->addUser($user);
+                    $em->persist($activity);
+                }
+
+                $followers = $previousUser->getFollowers();
+                /** @var User $follower */
+                foreach ($followers as $follower) {
+                    $follower->removeFollowing($previousUser);
+                    $follower->addFollowing($user);
+                    $em->persist($follower);
+                }
+                $user->setBrand($brand);
+                $user->setNbListen($previousUser->getNbListen());
+                $user->setNbNotification($previousUser->getNbNotification());
+            }
+            $brand->setName($user->getCompany()->getName());
+            $brand->setCategory($user->getCategorys()->first());
+            $em->persist($brand);
+            $user->setBrand($brand);
+
+            if ($user->getInvitation() !== null) {
+                /** @var Notification $notificationService */
+                $notificationService = $this->get('notification.service');
+                $notificationService->notifiedWithUsers('joinInvitation', $user->getInvitation()->getAuthor(), $user);
+                $invitation = $user->getInvitation();
+                $invitation->setSent(true);
+                $em->persist($invitation);
+                $invitationAuthor = $user->getInvitation()->getAuthor();
+                $invitationAuthor->setCount($invitationAuthor->getCount() + 100);
+                $em->persist($invitationAuthor);
+                $scoringService = $this->get('scoring.service');
+                $scoringService->actualizeStatus($invitationAuthor);
+                $this->get('exchange.push.service')->pushMe($invitationAuthor->getUniqueId(), 'score', $invitationAuthor);
+                $this->get('user.badge.service')->badgeAlone('invitationSignup', $invitationAuthor);
+                $textInvitation = ' et était invité par '.$invitation->getAuthor()->getFullName().' ('.$invitation->getAuthor()->getEmail().')';
+            } else {
+                $textInvitation = "";
+            }
+
+            $this->get('activehost.service')->postEvent("signup company", $user->getEmail());
+
+            $subject = '[Inscription] Une nouvelle société s\'est inscrit.';
+            $textBody = 'Une société: '.$user->getFullName().'  s\'est inscrit'.$textInvitation.' : email: '.$user->getEmail() . ', phone' . $user->getCompany()->getPhone();
+            $htmlBody = 'Une société: '.$user->getFullName().'  s\'est inscrit'.$textInvitation.' : email: '.$user->getEmail() . ', phone' . $user->getCompany()->getPhone();
+
+            $this->get('asynctask.service')->pushEmail('thebraineetbros@braineet.com', $subject, $textBody, $htmlBody, 'thebraineetbros@braineet.com', 'The Braineet Bros');
+
+            $em->persist($user);
+            $em->flush();
+
+            if ($previousUser !== null) {
+                $brainees = $previousUser->getBraineeTags();
+                /** @var Brainee $brainee */
+                foreach ($brainees as $brainee) {
+                    $brainee->removeUserTag($previousUser);
+                    $brainee->addUserTag($user);
+                    $brainee->setText(preg_replace('/\{\['.$previousUser->getId().'\]\}/', '{['.$user->getId().']}' , $brainee->getText()));
+                    $em->persist($brainee);
+                }
+
+                $comments = $previousUser->getCommentTags();
+                /** @var Comment $comment */
+                foreach ($comments as $comment) {
+                    $comment->removeUserTag($previousUser);
+                    $comment->addUserTag($user);
+                    $comment->setText(preg_replace('/\{\['.$previousUser->getId().'\]\}/', '{['.$user->getId().']}' , $comment->getText()));
+                    $em->persist($comment);
+                }
+                $em->remove($previousUser);
+                $em->flush();
+            }
+
+            $employee = new Employee();
+            $employee->setLevel(4);
+            $user->setEmployee($employee);
+            $employee->setBrand($user->getBrand());
+            $em->persist($employee);
+            $event = new FormEvent($form, $request);
+            $dispatcher->dispatch(FOSUserEvents::REGISTRATION_SUCCESS, $event);
+            $user->setEnabled(true);
+            $userManager->updateUser($user);
+            $this->get('prerender.service')->cache("https://www.braineet.com/profiles/".$user->getId());
+            $this->get('activehost.service')->postEvent("signup", $user->getEmail());
+            $context = SerializationContext::create();
+            if ($request->headers->get('version')) {
+                $version = floatval($request->headers->get('version'));
+            } else{
+                $version = 2.1;
+            }
+            $context->setVersion($version);
+            if ($request->headers->get('platform')) {
+                $context->setGroups(array("Default", "User","UserMe", "UserPrivate", "UserDetails", "Employee"));
+            }
+            return $this->view(array('token' => $authentification->authenticate($user), 'user' => $user), 200)->setSerializationContext($context);
+        }
+        return $this->view($form, 400);
+    }
+
+    /**
+     * @View(serializerGroups={"Default", "User","UserMe", "UserPrivate", "UserDetails", "TagLastBrainee", "Employee"})
+     */
+    public function postUsersLoginAction(Request $request)
+    {
+        $email = $request->get('email');
+        $password = $request->get('password');
+        $um = $this->get('fos_user.user_manager');
+        $em = $this->getDoctrine()->getManager();
+        $authentification = $this->get('authentication.service');
+
+        /** @var User $user */
+        $user = $um->findUserByEmail($email);
+        if ($request->headers->get('platform') == "auchan_tmp" && !($user instanceof User && ($user->getIsBrainer() == true || $user->getUserBrand()->getBrand()->getPlatform()->getName() != $request->headers->get('platform')))) {
+            $translatable = $this->get('gedmo.listener.translatable');
+            $user = $this->get('auchan.rw.service')->login($user, $email, $password, $translatable->getTranslatableLocale());
+        } else {
+            if(!$user instanceof User) {
+                throw new NotFoundHttpException("User not found");
+            }
+            if(!$this->checkUserPassword($user, $password)){
+                throw new AccessDeniedException("Wrong password");
+            }
+        }
+        //  && !($user->getCertified() == false && $user->getIsBrand() == true)
+        if (!($user->getActive() == false && $user->getIsBrand() == true)) {
+            $beforeLast = $user->getLastLogin();
+            $date = new \DateTime;
+            $user->setLastLogin($date);
+            if (!$request->headers->get('platform') && !$request->headers->get('Origin') != "widgets.braineet.com" && $user->getIsBrainer() == false) {
+                $user->setIsBrainer(true);
+                if ($user->getLanguage() == 'fr') {
+                    $template = $this->get('twig')->loadTemplate('UserBundle:UserPlatform:fr.welcome_to_braineet.email.html.twig');
+                } else {
+                    $template = $this->get('twig')->loadTemplate('UserBundle:UserPlatform:en.welcome_to_braineet.email.html.twig');
+                }
+                $properties = array (
+                    "distinct_id" => $user->getEmail(),
+                    "token" => "f636913b89694f1c21ea9b179b8d6726",
+                    "time" => time(),
+                    "campaign" => "welcome to braineet by email",
+                    'language' => $user->getLanguage()
+                );
+                $trackingCode = base64_encode(json_encode(array("event" => "e-mail opened",
+                    "properties" => $properties)));
+                $mp = \Mixpanel::getInstance("f636913b89694f1c21ea9b179b8d6726");
+                $mp->track("e-mail sent", $properties);
+
+                $context = array('user' => $user, 'urlTracking' => $trackingCode);
+                $context['platform'] = $user->getUserBrand()->getBrand()->getPlatform();
+                $subject = $template->renderBlock('subject', $context);
+                $textBody = $template->renderBlock('body_text', $context);
+                $htmlBody = $template->renderBlock('body_html', $context);
+
+                $this->get('asynctask.service')->pushEmail($user->getEmail(), $subject, $textBody, $htmlBody, 'thebraineetbros@braineet.com', 'The Braineet Bros');
+            }
+            $em->persist($user);
+            $em->flush();
+            $this->get('activehost.service')->postEvent("login", $user->getEmail());
+            $user->setLastLogin($beforeLast);
+            if ($request->headers->get('version')) {
+                $version = floatval($request->headers->get('version'));
+            } else{
+                $version = 2.1;
+            }
+            if ($request->headers->get('platform') || $version < 2.1) {
+                $nb_notifications = (int)$em->getRepository('DataBundle:Notification')->setPlatform($this->getPlatform($request))
+                    ->setVersion($this->getVersion($request))
+                    ->countAllNotifications($user->getId());
+                $user->setNbNotification($nb_notifications);
+                $user->setNbFollowers((int)$em->getRepository('UserBundle:User')->setPlatform($this->getPlatform($request))->countFollowers($user));
+                $user->setNbFollowings((int)$em->getRepository('UserBundle:User')->setPlatform($this->getPlatform($request))->countFollowings($user));
+            }
+            $user->setNbBrainees((int)$em->getRepository('DataBundle:Brainee')->setPlatform($this->getPlatform($request))->countAllBraineesOfUser($user->getId()));
+            $user->setNbInteractions((int)$em->getRepository('DataBundle:Brainee')->setPlatform($this->getPlatform($request))->countAllBraineesUserInteracted($user->getId(), "likedCommented", $user->getActiveSort()));
+            if ($user->getIsBrand() && $user->getBrand()) {
+                $user->getBrand()->setNbChallengeSinceLastYear(((int)$em->getRepository('DataBundle:Challenge')->setPlatform($this->getPlatform($request))->getNbChallengeLastYearByBrand($user->getBrand()->getId())));
+            }
+            if ($user->getEmployee()) {
+                $user->getEmployee()->getBrand()->setNbChallengeSinceLastYear(((int)$em->getRepository('DataBundle:Challenge')->setPlatform($this->getPlatform($request))->getNbChallengeLastYearByBrand($user->getEmployee()->getBrand()->getId())));
+            }
+            $context = SerializationContext::create();
+            $context->setVersion($version);
+            if ($request->headers->get('platform')) {
+                $context->setGroups(array("Default", "User","UserMe", "UserPrivate", "UserDetails", "Employee"));
+            }
+            return $this->view(array('token' => $authentification->authenticate($user), 'user' => $user), 200)->setSerializationContext($context);
+        } else if ($user->getCertified()) {
+            return $this->view($user, 409);
+        } else {
+            throw new HttpException(403, 'You can\'t access to this brand');
+        }
+    }
+
+    /**
+     * @View(serializerGroups={"Default", "User","UserMe", "UserPrivate", "UserDetails", "TagLastBrainee", "Employee"})
+     */
+    public function postUsersLoginFacebookAction(Request $request)
+    {
+        $authentification = $this->get('authentication.service');
+        $em = $this->getDoctrine()->getManager();
+        FacebookSession::setDefaultApplication('460067530761243', '5e25a241a5b1ad04dfc9771d08722001');
+        FacebookCurlHttpClient::disableIPv6();
+        $code = $request->get('code');
+        if (isset($code)) {
+            $session = new FacebookSession($code);
+            try {
+                $session->validate();
+            } catch (FacebookRequestException $ex) {
+                throw new HttpException(400, 'Facebook error');
+            } catch (\Exception $ex) {
+                throw new HttpException(400, 'Facebook error');
+            }
+        } else {
+            $helper = new FacebookJavaScriptLoginHelper();
+            try {
+                $session = $helper->getSession();
+            } catch(FacebookRequestException $ex) {
+                throw new HttpException(400, 'Facebook error');
+            } catch(\Exception $ex) {
+                throw new HttpException(400, 'Facebook error');
+            }
+        }
+
+        if (isset($session)) {
+            $me = (new FacebookRequest(
+                $session, 'GET', '/me?fields=third_party_id'
+            ))->execute()->getGraphObject(GraphUser::className());
+
+            $user = $em->getRepository('UserBundle:User')->findOneBy(array('facebookUid' => $me->getProperty('id')));
+        } else {
+            throw new NotFoundHttpException("User not found");
+        }
+        if(!$user instanceof User){
+            throw new NotFoundHttpException("User not found".$me->getProperty('id'));
+        }
+        //  && !($user->getCertified() == false && $user->getIsBrand() == true)
+        if (!($user->getCertified() == false && $user->getIsBrand() == true)) {
+            $date = new \DateTime;
+            $beforeLast = $user->getLastLogin();
+            $user->setLastLogin($date);
+            if (!$request->headers->get('platform') && !$request->headers->get('Origin') != "widgets.braineet.com" && $user->getIsBrainer() == false) {
+                $user->setIsBrainer(true);
+                if ($user->getLanguage() == 'fr') {
+                    $template = $this->get('twig')->loadTemplate('UserBundle:UserPlatform:fr.welcome_to_braineet.email.html.twig');
+                } else {
+                    $template = $this->get('twig')->loadTemplate('UserBundle:UserPlatform:en.welcome_to_braineet.email.html.twig');
+                }
+                $properties = array (
+                    "distinct_id" => $user->getEmail(),
+                    "token" => "f636913b89694f1c21ea9b179b8d6726",
+                    "time" => time(),
+                    "campaign" => "welcome to braineet by email",
+                    'language' => $user->getLanguage()
+                );
+                $trackingCode = base64_encode(json_encode(array("event" => "e-mail opened",
+                    "properties" => $properties)));
+                $mp = \Mixpanel::getInstance("f636913b89694f1c21ea9b179b8d6726");
+                $mp->track("e-mail sent", $properties);
+
+                $context = array('user' => $user, 'urlTracking' => $trackingCode);
+                $context['platform'] = $user->getUserBrand()->getBrand()->getPlatform();
+                $subject = $template->renderBlock('subject', $context);
+                $textBody = $template->renderBlock('body_text', $context);
+                $htmlBody = $template->renderBlock('body_html', $context);
+
+                $this->get('asynctask.service')->pushEmail($user->getEmail(), $subject, $textBody, $htmlBody, 'thebraineetbros@braineet.com', 'The Braineet Bros');
+            }
+            $em->persist($user);
+            $em->flush();
+            $this->get('activehost.service')->postEvent("login", $user->getEmail());
+            $user->setLastLogin($beforeLast);
+
+            if ($request->headers->get('version')) {
+                $version = floatval($request->headers->get('version'));
+            } else{
+                $version = 2.1;
+            }
+            if ($request->headers->get('platform') || $version < 2.1) {
+                $nb_notifications = (int)$em->getRepository('DataBundle:Notification')->setPlatform($this->getPlatform($request))
+                    ->setVersion($this->getVersion($request))
+                    ->countAllNotifications($user->getId());
+                $user->setNbNotification($nb_notifications);
+                $user->setNbFollowers((int)$em->getRepository('UserBundle:User')->setPlatform($this->getPlatform($request))->countFollowers($user));
+                $user->setNbFollowings((int)$em->getRepository('UserBundle:User')->setPlatform($this->getPlatform($request))->countFollowings($user));
+            }
+            $user->setNbBrainees((int)$em->getRepository('DataBundle:Brainee')->setPlatform($this->getPlatform($request))->countAllBraineesOfUser($user->getId()));
+            $user->setNbInteractions((int)$em->getRepository('DataBundle:Brainee')->setPlatform($this->getPlatform($request))->countAllBraineesUserInteracted($user->getId(), "likedCommented", $user->getActiveSort()));
+            if ($user->getIsBrand()) {
+                $user->getBrand()->setNbChallengeSinceLastYear(((int)$em->getRepository('DataBundle:Challenge')->setPlatform($this->getPlatform($request))->getNbChallengeLastYearByBrand($user->getBrand()->getId())));
+            }
+            if ($user->getEmployee()) {
+                $user->getEmployee()->getBrand()->setNbChallengeSinceLastYear(((int)$em->getRepository('DataBundle:Challenge')->setPlatform($this->getPlatform($request))->getNbChallengeLastYearByBrand($user->getEmployee()->getBrand()->getId())));
+            }
+            $context = SerializationContext::create();
+            $context->setVersion($version);
+            if ($request->headers->get('platform')) {
+                $context->setGroups(array("Default", "User","UserMe", "UserPrivate", "UserDetails", "Employee"));
+            }
+
+            return $this->view(array('token' => $authentification->authenticate($user), 'user' => $user), 200)->setSerializationContext($context);
+        } else {
+            throw new HttpException(409, 'User is not confirmed');
+        }
+    }
+
+    /**
+     * @View(serializerGroups={"Default", "User","UserMe", "UserPrivate", "UserDetails", "TagLastBrainee", "Employee"})
+     */
+    public function postUsersLoginGoogleAction(Request $request)
+    {
+        $authentification = $this->get('authentication.service');
+        $em = $this->getDoctrine()->getManager();
+
+        try {
+            $client = new \Google_Client();
+            $client->setApplicationName('Braineet');
+            $client->setClientId('665774520576.apps.googleusercontent.com');
+            $client->setClientSecret('J8wyWX9pxUpassE94mS8pYS3');
+            $uri = $request->get('uri');
+            if ($uri == 'local') {
+                $client->setRedirectUri('http://localhost');
+            } else {
+                $client->setRedirectUri($uri);
+            }
+        } catch(\Exception $ex) {
+            throw new HttpException(500, $ex);
+        }
+        $code = $request->get('code');
+        if (isset($code)) {
+            $client->authenticate($code);
+            $plus = new \Google_Service_Plus($client);
+            $me = $plus->people->get('me');
+        } else {
+            throw new HttpException(400, 'Google error $code');
+        }
+        $user = $em->getRepository('UserBundle:User')->findOneBy(array('googleUid' => $me->getId()));
+        if(!$user instanceof User){
+            throw new NotFoundHttpException("User not found");
+        }
+        //  && !($user->getCertified() == false && $user->getIsBrand() == true)
+        if (!($user->getCertified() == false && $user->getIsBrand() == true)) {
+            $beforeLast = $user->getLastLogin();
+            $date = new \DateTime;
+            $user->setLastLogin($date);
+            if (!$request->headers->get('platform') && !$request->headers->get('Origin') != "widgets.braineet.com" && $user->getIsBrainer() == false) {
+                $user->setIsBrainer(true);
+                if ($user->getLanguage() == 'fr') {
+                    $template = $this->get('twig')->loadTemplate('UserBundle:UserPlatform:fr.welcome_to_braineet.email.html.twig');
+                } else {
+                    $template = $this->get('twig')->loadTemplate('UserBundle:UserPlatform:en.welcome_to_braineet.email.html.twig');
+                }
+                $properties = array (
+                    "distinct_id" => $user->getEmail(),
+                    "token" => "f636913b89694f1c21ea9b179b8d6726",
+                    "time" => time(),
+                    "campaign" => "welcome to braineet by email",
+                    'language' => $user->getLanguage()
+                );
+                $trackingCode = base64_encode(json_encode(array("event" => "e-mail opened",
+                    "properties" => $properties)));
+                $mp = \Mixpanel::getInstance("f636913b89694f1c21ea9b179b8d6726");
+                $mp->track("e-mail sent", $properties);
+
+                $context = array('user' => $user, 'urlTracking' => $trackingCode);
+                $context['platform'] = $user->getUserBrand()->getBrand()->getPlatform();
+                $subject = $template->renderBlock('subject', $context);
+                $textBody = $template->renderBlock('body_text', $context);
+                $htmlBody = $template->renderBlock('body_html', $context);
+
+                $this->get('asynctask.service')->pushEmail($user->getEmail(), $subject, $textBody, $htmlBody, 'thebraineetbros@braineet.com', 'The Braineet Bros');
+            }
+            $em->persist($user);
+            $em->flush();
+            $this->get('activehost.service')->postEvent("login", $user->getEmail());
+            $user->setLastLogin($beforeLast);
+            if ($request->headers->get('version')) {
+                $version = floatval($request->headers->get('version'));
+            } else{
+                $version = 2.1;
+            }
+            if ($request->headers->get('platform') || $version < 2.1) {
+                $nb_notifications = (int)$em->getRepository('DataBundle:Notification')->setPlatform($this->getPlatform($request))
+                    ->setVersion($this->getVersion($request))
+                    ->countAllNotifications($user->getId());
+                $user->setNbNotification($nb_notifications);
+                $user->setNbFollowers((int)$em->getRepository('UserBundle:User')->setPlatform($this->getPlatform($request))->countFollowers($user));
+                $user->setNbFollowings((int)$em->getRepository('UserBundle:User')->setPlatform($this->getPlatform($request))->countFollowings($user));
+            }
+            $user->setNbBrainees((int)$em->getRepository('DataBundle:Brainee')->setPlatform($this->getPlatform($request))->countAllBraineesOfUser($user->getId()));
+            $user->setNbInteractions((int)$em->getRepository('DataBundle:Brainee')->setPlatform($this->getPlatform($request))->countAllBraineesUserInteracted($user->getId(), "likedCommented", $user->getActiveSort()));
+            if ($user->getIsBrand()) {
+                $user->getBrand()->setNbChallengeSinceLastYear(((int)$em->getRepository('DataBundle:Challenge')->setPlatform($this->getPlatform($request))->getNbChallengeLastYearByBrand($user->getBrand()->getId())));
+            }
+            if ($user->getEmployee()) {
+                $user->getEmployee()->getBrand()->setNbChallengeSinceLastYear(((int)$em->getRepository('DataBundle:Challenge')->setPlatform($this->getPlatform($request))->getNbChallengeLastYearByBrand($user->getEmployee()->getBrand()->getId())));
+            }
+            $context = SerializationContext::create();
+            $context->setVersion($version);
+            if ($request->headers->get('platform')) {
+                $context->setGroups(array("Default", "User","UserMe", "UserPrivate", "UserDetails", "Employee"));
+            }
+
+            return $this->view(array('token' => $authentification->authenticate($user), 'user' => $user), 200)->setSerializationContext($context);
+        } else {
+            throw new HttpException(409, 'User is not confirmed');
+        }
+    }
+
+    /**
+     * @View(serializerGroups={"Default", "User","UserMe", "UserPrivate", "UserDetails", "TagLastBrainee", "Employee"})
+     */
+    public function postUsersFacebookAction(Request $request)
+    {
+        /** @var $formFactory \FOS\UserBundle\Form\Factory\FactoryInterface */
+        $formFactory = $this->container->get('fos_user.registration.form.factory');
+        /** @var $userManager \FOS\UserBundle\Model\UserManagerInterface */
+        $userManager = $this->container->get('fos_user.user_manager');
+        /** @var $dispatcher \Symfony\Component\EventDispatcher\EventDispatcherInterface */
+        $dispatcher = $this->container->get('event_dispatcher');
+
+        /** @var User $user */
+        $user = $userManager->createUser();
+        $user->addRole("ROLE_USER");
+        FacebookSession::setDefaultApplication('460067530761243', '5e25a241a5b1ad04dfc9771d08722001');
+        FacebookCurlHttpClient::disableIPv6();
+        $code = $request->get('code');
+        if (isset($code)) {
+            $session = new FacebookSession($code);
+            try {
+                $session->validate();
+            } catch (FacebookRequestException $ex) {
+                throw new HttpException(500, $ex);
+            } catch (\Exception $ex) {
+                throw new HttpException(500, $ex);
+            }
+        } else {
+            $helper = new FacebookJavaScriptLoginHelper();
+            try {
+                $session = $helper->getSession();
+            } catch(FacebookRequestException $ex) {
+                throw new HttpException(500, $ex);
+            } catch(\Exception $ex) {
+                throw new HttpException(500, $ex);
+            }
+        }
+        if (isset($session)) {
+            /** @var GraphUser $me */
+            $me = (new FacebookRequest(
+                $session, 'GET', '/me?fields=third_party_id,id,first_name,last_name,birthday,gender,email,cover'
+            ))->execute()->getGraphObject(GraphUser::className());
+        } else {
+            throw new HttpException(400, 'Facebook error no $session');
+        }
+        $user->setFacebookId($me->getProperty('id'));
+
+        $em = $this->getDoctrine()->getManager();
+        $existingId = $em->getRepository('UserBundle:User')->findOneBy(array('facebookUid' => $me->getId()));
+        if ($existingId != null) {
+            throw new HttpException(409, 'Facebook Id already used');
+        }
+
+        if ($me->getProperty('gender') == 'male') {
+            $user->setGender(0);
+        } else if ($me->getProperty('gender') == 'female') {
+            $user->setGender(1);
+        }
+        if ($request->headers->get('platform')) {
+            $platform = $em->getRepository('UserBundle:Platform')->findOneBy(array('name' => $request->headers->get('platform')));
+            if ($platform !== null) {
+                $user->setIsBrainer(false);
+                $userBrand = new UserBrand();
+                $userBrand->setBrand($platform->getBrand());
+                $userBrand->setUser($user);
+                $em->persist($userBrand);
+            }
+        }
+        $user->setFacebookUid($me->getId());
+        $user->setFirstName($me->getProperty('first_name'));
+        $user->setLastName($me->getProperty('last_name'));
+        if (isset($request->get('user_registration')['email']) == false) {
+            $user->setEmail($me->getProperty('email'));
+            if ($user->getEmail() == null) {
+                throw new HttpException(400, 'Email empty');
+            }
+        }
+        $user->setConfirmation(false);
+        $user->setLastFacebookContacts(new \DateTime('now'));
+
+        $event = new GetResponseUserEvent($user, $request);
+        $dispatcher->dispatch(FOSUserEvents::REGISTRATION_INITIALIZE, $event);
+
+        $form = $formFactory->createForm();
+        $form->setData($user);
+
+        $form->handleRequest($request);
+
+        if ($form->isValid()) {
+            $authentification = $this->get('authentication.service');
+
+            $company = $em->getRepository('DataBundle:Company')->findOneBy(array('email' => $user->getEmail()));
+            if ($company !== null) {
+                throw new HttpException(400);
+            }
+
+            $user->addCountry($user->getCountry());
+
+            $coverProperty = $me->getProperty('cover');
+            if ($coverProperty) {
+                $coverSource = $me->getProperty('cover')->getProperty('source');
+                $elementToDelete = substr($coverSource, 0, strrpos($coverSource, '/'));
+                $elementToDelete = substr($elementToDelete, strrpos($elementToDelete, '/'));
+                $coverSource = str_replace($elementToDelete, '', $coverSource);
+                if ($coverSource) {
+                    $extUrl = 'upload/cover/' . md5(time() . '_' . uniqid());
+                    try {
+                        $coverPic = $this->getPhotoUploader()->uploadUrlCover($extUrl, $coverSource);
+                        $user->setCover($coverPic['url']);
+                        $user->setExtCover($coverPic['extension']);
+                    } catch(\Exception $ex) {
+                    }
+                }
+            }
+
+            $em->persist($user);
+
+            if ($user->getInvitation() == null) {
+                /** @var Invitation $invitation */
+                $invitation = $em->getRepository('UserBundle:Invitation')->findOneBy(array('email' => $user->getEmail()));
+                $user->setInvitation($invitation);
+            }
+            if (strpos($user->getEmail(), "@essec") !== false) {
+                $user->setReceivedChallenges(0);
+                $user->setReceivedInformations(0);
+                $user->setReceivedRevival(0);
+                $user->setReceivedNotifications(3);
+                $user->setIsEssec(true);
+                $em->persist($user);
+            }
+            if ($user->getInvitation() !== null) {
+                /** @var Notification $notificationService */
+                $notificationService = $this->get('notification.service');
+                $notificationService->notifiedWithUsers('joinInvitation', $user->getInvitation()->getAuthor(), $user);
+                $invitation = $user->getInvitation();
+                $invitation->setSent(true);
+                $em->persist($invitation);
+                $invitationAuthor = $user->getInvitation()->getAuthor();
+                $invitationAuthor->setCount($invitationAuthor->getCount() + 100);
+                $em->persist($invitationAuthor);
+                if ($invitationAuthor->getId() == 10370) {
+                    $user->setReceivedChallenges(0);
+                    $user->setReceivedInformations(0);
+                    $user->setReceivedRevival(0);
+                    $user->setReceivedNotifications(3);
+                    $em->persist($user);
+                }
+				$scoringService = $this->get('scoring.service');
+				$scoringService->actualizeStatus($invitationAuthor);
+				$this->get('exchange.push.service')->pushMe($invitationAuthor->getUniqueId(), 'score', $invitationAuthor);
+                $this->get('user.badge.service')->badgeAlone('invitationSignup', $invitationAuthor);
+                if (($invitationAuthor->getIsBrand() || $invitationAuthor->getEmployee()) && $invitation->getEmployeeLevel()) {
+                    $employee = new Employee();
+                    $employee->setUser($user);
+                    $employee->setLevel($invitation->getEmployeeLevel());
+                    if ($invitationAuthor->getIsBrand()) {
+                        $employee->setBrand($invitationAuthor->getBrand());
+                    } else {
+                        $employee->setBrand($invitationAuthor->getEmployee()->getBrand());
+                    }
+                    $em->persist($employee);
+                }
+            }
+
+            $invitations = $em->getRepository('UserBundle:Invitation')->findBy(array('email' => $user->getEmail()));
+            /** @var Invitation $invitation */
+            foreach ($invitations as $invitation) {
+                $invitation->setSent(true);
+                $em->persist($invitation);
+            }
+
+            $fbRequest = new FacebookRequest(
+                $session,
+                'GET',
+                '/me/picture',
+                array (
+                    'redirect' => false,
+                    'height' => '200',
+                    'type' => 'normal',
+                    'width' => '200',
+                )
+            );
+            $response = $fbRequest->execute()->getResponse();
+            if (isset($response->data) && isset($response->data->url)) {
+                $extUrl = 'upload/profile/'.md5(time() . '_' . uniqid());
+                try {
+                    $profilePic = $this->getPhotoUploader()->uploadUrlUser($extUrl, $response->data->url);
+                    $user->setPicture($profilePic['url']);
+                    $user->setExtPicture($profilePic['extension']);
+                } catch(\Exception $ex) {
+                }
+            }
+            $em->persist($user);
+
+            /** Find if people know me on Braineet */
+            $alreadyConnections = array();
+            $connections = $em->getRepository('UserBundle:Connection')->findBy(array('facebookId' => $user->getFacebookId()));
+            /** @var Connection $connection */
+            foreach ($connections as $connection) {
+                $connection->setUser($user);
+                $em->persist($connection);
+                array_push($alreadyConnections, $connection->getId());
+                /** @var User $userConnection  */
+                foreach ($connection->getUsers() as $userConnection)
+                {
+                    /** @var Notification $notificationService */
+                    $notificationService = $this->get('notification.service');
+                    if ($user->getId() != $userConnection->getId() && ($user->getInvitation() != null && $user->getInvitation()->getAuthor()->getId() != $userConnection->getId())) {
+                        $notificationService->notifiedWithUsers('join', $userConnection, $user);
+                    }
+                }
+            }
+
+            $connections = $em->getRepository('UserBundle:Connection')->findBy(array('email' => $user->getEmail()));
+            /** @var Connection $connection */
+            foreach ($connections as $connection) {
+                $connection->setUser($user);
+                $em->persist($connection);
+
+                if (in_array($connection->getId(), $alreadyConnections) == false) {
+                    /** @var User $userConnection  */
+                    foreach ($connection->getUsers() as $userConnection)
+                    {
+                        /** @var Notification $notificationService */
+                        $notificationService = $this->get('notification.service');
+                        if ($user->getId() != $userConnection->getId() && ($user->getInvitation() != null && $user->getInvitation()->getAuthor()->getId() != $userConnection->getId())) {
+                            $notificationService->notifiedWithUsers('join', $userConnection, $user);
+                        }
+                    }
+                }
+            }
+
+            /** Get my contacts */
+
+            $friends = (new FacebookRequest(
+                $session, 'GET', '/me?fields=friends{name,id,picture,email}&limit=2000'))->execute()->getResponse();
+            foreach ($friends->friends->data as $contact) {
+                $connections = new ArrayCollection($em->getRepository('UserBundle:Connection')->findBy(array('facebookId' => $contact->id)));
+                if ($connections->count() == 0) {
+                    $connection = new Connection();
+                    $connection->setName($contact->name);
+                    $connection->setPicture($contact->picture->data->url);
+                    $connection->addUser($user);
+                    $connection->setFacebookId($contact->id);
+                    $connection->setType(1);
+                    $facebookUser = $em->getRepository('UserBundle:User')->findOneBy(array('facebookUid' => $contact->id));
+                    $connection->setUser($facebookUser);
+                    $em->persist($connection);
+                }
+                foreach ($connections as $connection) {
+                    if ($connection->getUsers()->contains($user) == false) {
+                        $connection->addUser($user);
+                    }
+                    if ($connection->getEmail()) {
+                        $connection->setType(4);
+                    }
+                    $connection->setName($contact->name);
+                    $connection->setPicture($contact->picture->data->url);
+                    $em->persist($connection);
+                }
+            }
+            $event = new FormEvent($form, $request);
+            $dispatcher->dispatch(FOSUserEvents::REGISTRATION_SUCCESS, $event);
+            $user->setEnabled(true);
+            $userManager->updateUser($user);
+            $em->flush();
+            $this->get('activehost.service')->postEvent("signup", $user->getEmail());
+            $this->get('prerender.service')->cache("https://www.braineet.com/profiles/".$user->getId());
+
+            if ($user->getInvitation() !== null) {
+                $invitationAuthor = $user->getInvitation()->getAuthor();
+                $scoringService = $this->get('scoring.service');
+                $scoringService->actualizeStatus($invitationAuthor);
+                $em->flush();
+                $this->get('exchange.push.service')->pushMe($invitationAuthor->getUniqueId(), 'score', $invitationAuthor);
+            }
+
+            $context = SerializationContext::create();
+            if ($request->headers->get('version')) {
+                $version = floatval($request->headers->get('version'));
+            } else{
+                $version = 2.1;
+            }
+            $context->setVersion($version);
+            if ($request->headers->get('platform')) {
+                $context->setGroups(array("Default", "User","UserMe", "UserPrivate", "UserDetails", "Employee"));
+            }
+
+            return $this->view(array('token' => $authentification->authenticate($user), 'user' => $user), 200)->setSerializationContext($context);
+        }
+        return $this->view($form, 400);
+    }
+
+    /**
+     * @View(serializerGroups={"Default", "User","UserMe", "UserPrivate", "UserDetails", "TagLastBrainee", "Employee"})
+     */
+    public function patchUsersFacebookAction(Request $request)
+    {
+        $this->forwardIfNotAuthenticated();
+        $em = $this->getDoctrine()->getManager();
+        /** @var User $user */
+        $user = $this->getUser();
+
+        if ($user->getFacebookUid() !== null ) {
+            $user->setFacebookId(null);
+            $user->setFacebookUid(null);
+            $em->persist($user);
+            $em->flush();
+
+            $response = new Response();
+            $response->setStatusCode(204);
+            return $response;
+        } else {
+            FacebookSession::setDefaultApplication('460067530761243', '5e25a241a5b1ad04dfc9771d08722001');
+            FacebookCurlHttpClient::disableIPv6();
+
+            $code = $request->get('code');
+            if (isset($code)) {
+                $session = new FacebookSession($code);
+                try {
+                    $session->validate();
+                } catch (FacebookRequestException $ex) {
+                    throw new HttpException(500, $ex);
+                } catch (\Exception $ex) {
+                    throw new HttpException(500, $ex);
+                }
+            } else {
+                $helper = new FacebookJavaScriptLoginHelper();
+                try {
+                    $session = $helper->getSession();
+                } catch(FacebookRequestException $ex) {
+                    throw new HttpException(500, $ex);
+                } catch(\Exception $ex) {
+                    throw new HttpException(500, $ex);
+                }
+            }
+            if (isset($session)) {
+                /** @var GraphUser $me */
+                $me = (new FacebookRequest(
+                    $session, 'GET', '/me?fields=third_party_id,id,first_name,last_name,birthday,gender,email,cover'
+                ))->execute()->getGraphObject(GraphUser::className());
+            } else {
+                throw new HttpException(400, 'Facebook error no $session');
+            }
+            $alreadyUser = $em->getRepository('UserBundle:User')->findOneBy(array('facebookUid' => $me->getProperty('id')));
+            if ($alreadyUser == null) {
+                throw new HttpException(409, 'This Facebook account is already link to an user');
+            }
+            $user->setFacebookId($me->getProperty('id'));
+            $user->setFacebookUid($me->getId());
+            if ($me->getProperty('gender') == 'male') {
+                $user->setGender(0);
+            } else if ($me->getProperty('gender') == 'female') {
+                $user->setGender(1);
+            }
+            $user->setConfirmation(false);
+            $user->setLastFacebookContacts(new \DateTime('now'));
+            $em->persist($user);
+
+            $coverProperty = $me->getProperty('cover');
+            if ($coverProperty) {
+                $coverSource = $me->getProperty('cover')->getProperty('source');
+                $elementToDelete = substr($coverSource, 0, strrpos($coverSource, '/'));
+                $elementToDelete = substr($elementToDelete, strrpos($elementToDelete, '/'));
+                $coverSource = str_replace($elementToDelete, '', $coverSource);
+                if ($coverSource && ($user->getCover() == 'upload/cover/user/')) {
+                    $extUrl = 'upload/cover/'.md5(time() . '_' . uniqid());
+                    try {
+                        $coverPic = $this->getPhotoUploader()->uploadUrlCover($extUrl, $coverSource);
+                        $user->setCover($coverPic['url']);
+                        $user->setExtCover($coverPic['extension']);
+                    } catch(\Exception $ex) {
+                    }
+                }
+            }
+
+            /** Find if people know me on Braineet */
+
+            $connections = $em->getRepository('UserBundle:Connection')->findBy(array('facebookId' => $user->getFacebookId()));
+            /** @var Connection $connection */
+            foreach ($connections as $connection) {
+                $connection->setUser($user);
+                $em->persist($connection);
+            }
+
+            $connections = $em->getRepository('UserBundle:Connection')->findBy(array('email' => $user->getEmail()));
+            /** @var Connection $connection */
+            foreach ($connections as $connection) {
+                $connection->setUser($user);
+                $em->persist($connection);
+            }
+
+            /** Get my contacts */
+
+            $friends = (new FacebookRequest(
+                $session, 'GET', '/me?fields=friends{name,id,picture,email}&limit=2000'))->execute()->getResponse();
+            if (isset($friends->friends->data)) {
+                foreach ($friends->friends->data as $contact) {
+                    $connections = new ArrayCollection($em->getRepository('UserBundle:Connection')->findBy(array('facebookId' => $contact->id)));
+                    if ($connections->count() == 0) {
+                        $connection = new Connection();
+                        $connection->setName($contact->name);
+                        $connection->setPicture($contact->picture->data->url);
+                        $connection->addUser($user);
+                        $connection->setFacebookId($contact->id);
+                        $connection->setType(1);
+                        $facebookUser = $em->getRepository('UserBundle:User')->findOneBy(array('facebookUid' => $contact->id));
+                        $connection->setUser($facebookUser);
+                        $em->persist($connection);
+                    }
+                    foreach ($connections as $connection) {
+                        if ($connection->getUsers()->contains($user) == false) {
+                            $connection->addUser($user);
+                        }
+                        if ($connection->getEmail()) {
+                            $connection->setType(4);
+                        }
+                        $connection->setName($contact->name);
+                        $connection->setPicture($contact->picture->data->url);
+                        $em->persist($connection);
+                    }
+                }
+            }
+
+            $em->flush();
+        }
+        return $this->view(array('id' => $user->getFacebookUid()), 200);
+    }
+
+    /**
+     * @View(serializerGroups={"Default", "User","UserMe", "UserPrivate", "UserDetails", "TagLastBrainee", "Employee"})
+     */
+    public function postUsersGoogleAction(Request $request)
+    {
+        /** @var $formFactory \FOS\UserBundle\Form\Factory\FactoryInterface */
+        $formFactory = $this->container->get('fos_user.registration.form.factory');
+        /** @var $userManager \FOS\UserBundle\Model\UserManagerInterface */
+        $userManager = $this->container->get('fos_user.user_manager');
+        /** @var $dispatcher \Symfony\Component\EventDispatcher\EventDispatcherInterface */
+        $dispatcher = $this->container->get('event_dispatcher');
+
+        /** @var User $user */
+        $user = $userManager->createUser();
+        $user->addRole("ROLE_USER");
+
+        try {
+            $client = new \Google_Client();
+            $client->setApplicationName('Braineet');
+            $client->setClientId('665774520576.apps.googleusercontent.com');
+            $client->setClientSecret('J8wyWX9pxUpassE94mS8pYS3');
+            $uri = $request->get('uri');
+            if ($uri == 'local') {
+                $client->setRedirectUri('http://localhost');
+            } else {
+                $client->setRedirectUri($uri);
+            }
+        } catch(\Exception $ex) {
+            throw new HttpException(500, $ex);
+        }
+        $code = $request->get('user_registration')['code'];
+        if (isset($code)) {
+            $client->authenticate($code);
+            $plus = new \Google_Service_Plus($client);
+            $me = $plus->people->get('me');
+        } else {
+            throw new HttpException(400, 'Google error $code');
+        }
+        $user->setGoogleId($me->getId());
+        $em = $this->getDoctrine()->getManager();
+        $existingId = $em->getRepository('UserBundle:User')->findOneBy(array('googleUid' => $me->getId()));
+        if ($existingId != null) {
+            throw new HttpException(409, 'Google Id already used');
+        }
+
+        if ($request->headers->get('platform')) {
+            /** @var Platform $platform */
+            $platform = $em->getRepository('UserBundle:Platform')->findOneBy(array('name' => $request->headers->get('platform')));
+            if ($platform !== null) {
+                $user->setIsBrainer(false);
+                $userBrand = new UserBrand();
+                $userBrand->setBrand($platform->getBrand());
+                $userBrand->setUser($user);
+                $em->persist($userBrand);
+            }
+        }
+        $user->setGoogleUid($me->getId());
+        if ($me->getGender() == 'male') {
+            $user->setGender(0);
+        } else if ($me->getGender() == 'female') {
+            $user->setGender(1);
+        }
+        //$me->getNickname();
+        /** @var \Google_Service_Plus_PersonName $name */
+        $name = $me->getName();
+        $user->setFirstName($name->getGivenName());
+        $user->setLastName($name->getFamilyName());
+        $user->setConfirmation(false);
+        $user->setAge($me->getBirthday());
+
+        $event = new GetResponseUserEvent($user, $request);
+        $dispatcher->dispatch(FOSUserEvents::REGISTRATION_INITIALIZE, $event);
+
+        if (isset($request->get('user_registration')['email']) == false) {
+            $PlusPersonEMails = $me->getEmails();
+            foreach($PlusPersonEMails as $emU) {
+                if($emU->type == "account") {
+                    $user->setEmail($emU->value);
+                }
+            }
+            if ($user->getEmail() == null) {
+                throw new HttpException(400, 'Email empty');
+            }
+        }
+
+        $form = $formFactory->createForm();
+        $form->setData($user);
+
+        $form->handleRequest($request);
+
+        if ($form->isValid()) {
+            $authentification = $this->get('authentication.service');
+
+            $company = $em->getRepository('DataBundle:Company')->findOneBy(array('email' => $user->getEmail()));
+            if ($company !== null) {
+                throw new HttpException(400);
+            }
+
+            $user->addCountry($user->getCountry());
+            $user->setLastGoogleContacts(new \DateTime('now'));
+            $em->persist($user);
+            if ($user->getInvitation() == null) {
+                /** @var Invitation $invitation */
+                $invitation = $em->getRepository('UserBundle:Invitation')->findOneBy(array('email' => $user->getEmail()));
+                $user->setInvitation($invitation);
+            }
+
+            if (strpos($user->getEmail(), "@essec") !== false) {
+                $user->setReceivedChallenges(0);
+                $user->setReceivedInformations(0);
+                $user->setReceivedRevival(0);
+                $user->setReceivedNotifications(3);
+                $user->setIsEssec(true);
+                $em->persist($user);
+            }
+            if ($user->getInvitation() !== null) {
+                /** @var Notification $notificationService */
+                $notificationService = $this->get('notification.service');
+                $notificationService->notifiedWithUsers('joinInvitation', $user->getInvitation()->getAuthor(), $user);
+                $invitation = $user->getInvitation();
+                $invitation->setSent(true);
+                $em->persist($invitation);
+                $invitationAuthor = $user->getInvitation()->getAuthor();
+                $invitationAuthor->setCount($invitationAuthor->getCount() + 100);
+                $em->persist($invitationAuthor);
+                if ($invitationAuthor->getId() == 10370) {
+                    $user->setReceivedChallenges(0);
+                    $user->setReceivedInformations(0);
+                    $user->setReceivedRevival(0);
+                    $user->setReceivedNotifications(3);
+                    $em->persist($user);
+                }
+				$scoringService = $this->get('scoring.service');
+				$scoringService->actualizeStatus($invitationAuthor);
+				$this->get('exchange.push.service')->pushMe($invitationAuthor->getUniqueId(), 'score', $invitationAuthor);
+                $this->get('user.badge.service')->badgeAlone('invitationSignup', $invitationAuthor);
+                if (($invitationAuthor->getIsBrand() || $invitationAuthor->getEmployee()) && $invitation->getEmployeeLevel()) {
+                    $employee = new Employee();
+                    $employee->setUser($user);
+                    $employee->setLevel($invitation->getEmployeeLevel());
+                    if ($invitationAuthor->getIsBrand()) {
+                        $employee->setBrand($invitationAuthor->getBrand());
+                    } else {
+                        $employee->setBrand($invitationAuthor->getEmployee()->getBrand());
+                    }
+                    $em->persist($employee);
+                }
+            }
+
+            $invitations = $em->getRepository('UserBundle:Invitation')->findBy(array('email' => $user->getEmail()));
+            /** @var Invitation $invitation */
+            foreach ($invitations as $invitation) {
+                $invitation->setSent(true);
+                $em->persist($invitation);
+            }
+            /** @var \Google_Service_Plus_PersonImage $PlusPersonImage */
+            $PlusPersonImage = $me->getImage();
+            $profile_image_url = filter_var($PlusPersonImage->getUrl(), FILTER_VALIDATE_URL);
+            $parsed_url = parse_url($profile_image_url);
+            $ImgResized	= $parsed_url['scheme']
+                . '://' . $parsed_url["host"]
+                . $parsed_url["path"]
+                . '?sz=250';
+
+            $extUrl = 'upload/profile/'.md5(time() . '_' . uniqid());
+
+            try {
+                $pic = $this->getPhotoUploader()->uploadUrlUser($extUrl, $ImgResized);
+                $user->setPicture($pic['url']);
+                $user->setExtPicture($pic['extension']);
+            } catch(\Exception $ex) {
+            }
+            $em->persist($user);
+
+            $alreadyConnections = array();
+            /** Find if people know me on Braineet */
+
+            $connections = $em->getRepository('UserBundle:Connection')->findBy(array('email' => $user->getEmail()));
+            /** @var Connection $connection */
+            foreach ($connections as $connection) {
+                $connection->setUser($user);
+                $em->persist($connection);
+                if (in_array($connection->getId(), $alreadyConnections) == false) {
+                    /** @var User $userConnection  */
+                    foreach ($connection->getUsers() as $userConnection)
+                    {
+                        /** @var Notification $notificationService */
+                        $notificationService = $this->get('notification.service');
+                        if ($user->getId() != $userConnection->getId() && ($user->getInvitation() != null && $user->getInvitation()->getAuthor()->getId() != $userConnection->getId())) {
+                            $notificationService->notifiedWithUsers('join', $userConnection, $user);
+                        }
+                    }
+                }
+            }
+
+            /** Get my contacts */
+
+            $token = $client->getAccessToken();
+            $options = array(CURLOPT_RETURNTRANSFER => true, // return web page
+                CURLOPT_HEADER => false, // do not return headers
+                CURLOPT_FOLLOWLOCATION => true, // follow redirects
+                CURLOPT_USERAGENT => "braineet", // who am i
+                CURLOPT_CONNECTTIMEOUT => 120, // timeout on connect
+                CURLOPT_TIMEOUT => 120, // timeout on response
+                CURLOPT_MAXREDIRS => 10, // stop after 10 redirects
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYHOST => false
+            );
+            $api_url = 'https://www.google.com/m8/feeds/contacts/default/full?alt=json&access_token='.$token['access_token'].'&max-results=700&v=3.0';
+            $curl = curl_init($api_url);
+            @curl_setopt_array($curl, $options);
+            $curl_response = json_decode(curl_exec($curl));
+            curl_close($curl);
+
+            if (isset($curl_response->feed->entry)) {
+                foreach ($curl_response->feed->entry as $contact) {
+                    $i = 0;
+                    if (isset($contact->{'gd$email'}[0])) {
+                        $connections = new ArrayCollection($em->getRepository('UserBundle:Connection')->findBy(array('email' => $contact->{'gd$email'}[0]->address)));
+                        if ($connections->count() == 0) {
+                            $connection = new Connection();
+                            if (isset($contact->{'gd$name'})) {
+                                $connection->setName($contact->{'gd$name'}->{'gd$fullName'}->{'$t'});
+                            }
+                            $connection->addUser($user);
+                            $connection->setEmail($contact->{'gd$email'}[0]->address);
+                            $connection->setType(2);
+                            $googleUser = $em->getRepository('UserBundle:User')->findOneBy(array('email' => $contact->{'gd$email'}[0]->address));
+                            $connection->setUser($googleUser);
+                            $em->persist($connection);
+                        }
+                        foreach ($connections as $connection) {
+                            if ($connection->getUsers()->contains($user) == false) {
+                                $connection->addUser($user);
+                            }
+                            $connection->setType(4);
+                            if ($connection->getName() == null && isset($contact->{'gd$name'})) {
+                                $connection->setName($contact->{'gd$name'}->{'gd$fullName'}->{'$t'});
+                            }
+                            $em->persist($connection);
+                            $i++;
+                        }
+                    }
+                }
+            }
+
+            if ($user->getInvitation() !== null) {
+                $invitationAuthor = $user->getInvitation()->getAuthor();
+                $scoringService = $this->get('scoring.service');
+                $scoringService->actualizeStatus($invitationAuthor);
+                $em->flush();
+                $this->get('exchange.push.service')->pushMe($invitationAuthor->getUniqueId(), 'score', $invitationAuthor);
+            }
+
+            $event = new FormEvent($form, $request);
+            $dispatcher->dispatch(FOSUserEvents::REGISTRATION_SUCCESS, $event);
+            $user->setEnabled(true);
+            $userManager->updateUser($user);
+            $em->flush();
+            $this->get('prerender.service')->cache("https://www.braineet.com/profiles/".$user->getId());
+            $this->get('activehost.service')->postEvent("signup", $user->getEmail());
+            $context = SerializationContext::create();
+            if ($request->headers->get('version')) {
+                $version = floatval($request->headers->get('version'));
+            } else{
+                $version = 2.1;
+            }
+            $context->setVersion($version);
+            if ($request->headers->get('platform')) {
+                $context->setGroups(array("Default", "User","UserMe", "UserPrivate", "UserDetails", "Employee"));
+            }
+
+            return $this->view(array('token' => $authentification->authenticate($user), 'user' => $user), 200)->setSerializationContext($context);
+        }
+        return $this->view($form, 400);
+    }
+
+    /**
+     * @View(serializerGroups={"Default", "User","UserMe", "UserPrivate", "UserDetails", "TagLastBrainee", "Employee"})
+     */
+    public function patchUsersGoogleAction(Request $request)
+    {
+        $this->forwardIfNotAuthenticated();
+        $em = $this->getDoctrine()->getManager();
+        /** @var User $user */
+        $user = $this->getUser();
+        if ($user->getGoogleUid() !== null && $request->get('code') === null) {
+            $user->setGoogleId(null);
+            $user->setGoogleUid(null);
+            $em->persist($user);
+            $em->flush();
+
+            $response = new Response();
+            $response->setStatusCode(204);
+            return $response;
+        } else {
+            try {
+                $client = new \Google_Client();
+                $client->setApplicationName('Braineet');
+                $client->setClientId('665774520576.apps.googleusercontent.com');
+                $client->setClientSecret('J8wyWX9pxUpassE94mS8pYS3');
+                $uri = $request->get('uri');
+                if ($uri == 'local') {
+                    $client->setRedirectUri('http://localhost');
+                } else {
+                    $client->setRedirectUri($uri);
+                }
+            } catch(\Exception $ex) {
+                throw new HttpException(500, $ex);
+            }
+            $code = $request->get('code');
+            if (isset($code)) {
+                try {
+                    $client->authenticate($code);
+                    $plus = new \Google_Service_Plus($client);
+                    $me = $plus->people->get('me');
+                } catch(\Exception $ex) {
+                    throw new HttpException(500, $ex);
+                }
+            } else {
+                throw new HttpException(400, 'Google error $code');
+            }
+            $alreadyUser = $em->getRepository('UserBundle:User')->findOneBy(array('googleUid' => $me->getId()));
+            if ($alreadyUser !== null) {
+                throw new HttpException(409, 'This Google account is already link to an user');
+            }
+            $user->setGoogleId($me->getId());
+            $user->setGoogleUid($me->getId());
+            if ($me->getGender() == 'male') {
+                $user->setGender(0);
+            } else if ($me->getGender() == 'female') {
+                $user->setGender(1);
+            }
+            $user->setConfirmation(false);
+            if ($user->getAge() == null) {
+                $user->setAge($me->getBirthday());
+            }
+            $user->setLastGoogleContacts(new \DateTime('now'));
+            $em->persist($user);
+
+            /** Find if people know me on Braineet */
+
+            $connections = $em->getRepository('UserBundle:Connection')->findBy(array('email' => $user->getEmail()));
+            /** @var Connection $connection */
+            foreach ($connections as $connection) {
+                $connection->setUser($user);
+                $em->persist($connection);
+            }
+
+            /** Get my contacts */
+            $token = $client->getAccessToken();
+            $options = array(CURLOPT_RETURNTRANSFER => true, // return web page
+                CURLOPT_HEADER => false, // do not return headers
+                CURLOPT_FOLLOWLOCATION => true, // follow redirects
+                CURLOPT_USERAGENT => "braineet", // who am i
+                CURLOPT_CONNECTTIMEOUT => 120, // timeout on connect
+                CURLOPT_TIMEOUT => 120, // timeout on response
+                CURLOPT_MAXREDIRS => 10, // stop after 10 redirects
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYHOST => false
+            );
+            $api_url = 'https://www.google.com/m8/feeds/contacts/default/full?alt=json&access_token='.$token['access_token'].'&max-results=700&v=3.0';
+            $curl = curl_init($api_url);
+            @curl_setopt_array($curl, $options);
+            $curl_response = json_decode(curl_exec($curl));
+            curl_close($curl);
+
+            if (isset($curl_response->feed->entry)) {
+                foreach ($curl_response->feed->entry as $contact) {
+                    $i = 0;
+                    if (isset($contact->{'gd$email'}[0])) {
+                        $connections = new ArrayCollection($em->getRepository('UserBundle:Connection')->findBy(array('email' => $contact->{'gd$email'}[0]->address)));
+                        if ($connections->count() == 0) {
+                            $connection = new Connection();
+                            if (isset($contact->{'gd$name'})) {
+                                $connection->setName($contact->{'gd$name'}->{'gd$fullName'}->{'$t'});
+                            }
+                            $connection->addUser($user);
+                            $connection->setEmail($contact->{'gd$email'}[0]->address);
+                            $connection->setType(2);
+                            $googleUser = $em->getRepository('UserBundle:User')->findOneBy(array('email' => $contact->{'gd$email'}[0]->address));
+                            $connection->setUser($googleUser);
+                            $em->persist($connection);
+                        }
+                        foreach ($connections as $connection) {
+                            if ($connection->getUsers()->contains($user) == false) {
+                                $connection->addUser($user);
+                            }
+                            $connection->setType(4);
+                            if ($connection->getName() == null && isset($contact->{'gd$name'})) {
+                                $connection->setName($contact->{'gd$name'}->{'gd$fullName'}->{'$t'});
+                            }
+                            $em->persist($connection);
+                            $i++;
+                        }
+                    }
+                }
+            }
+
+            $em->flush();
+        }
+        return $this->view(array('id' => $user->getGoogleUid()), 200);
+    }
+
+    /**
+     * @View(serializerGroups={"Default", "User","UserMe", "UserPrivate", "UserDetails", "TagLastBrainee", "Employee"})
+     */
+    public function postUsersConfirmationAction(Request $request)
+    {
+        $this->forwardIfNotAuthenticated();
+        /** @var User $user */
+        $user = $this->getUser();
+        $email = $request->get('email');
+        $previousEmail = $user->getEmail();
+
+        if ($email !== null) {
+            /** @var  User $user_email*/
+            $user_email = $this->container->get('fos_user.user_manager')->findUserByUsernameOrEmail($email);
+        }
+        if ($email === null || ($user_email !== null && $user_email->getId() != $user->getId())) {
+            throw new HttpException(400, 'User is already exist');
+        }
+
+        $em = $this->getDoctrine()->getManager();
+
+        $company = $em->getRepository('DataBundle:Company')->findOneBy(array('email' => $email));
+        if ($company !== null && ($company->getUser() && $company->getUser()->getId() != $user->getId())) {
+            throw new HttpException(400, 'User is already exist');
+        }
+        /** @var $tokenGenerator \FOS\UserBundle\Util\TokenGeneratorInterface */
+        $tokenGenerator = $this->container->get('fos_user.util.token_generator');
+        $user->setConfirmationToken($tokenGenerator->generateToken());
+        $user->setEmail($email);
+        $user->setIsFakeEmail(false);
+        $em->persist($user);
+        $em->flush();
+
+        $this->container->get('user.mailer.braineet')->sendConfirmationEmailMessage($user);
+
+        return $this->view(array('email' => $user->getEmail()), 200);
+    }
+
+    /**
+     * @View(serializerGroups={"Default", "User"})
+     */
+    public function postUsersRefreshAction(Request $request)
+    {
+        /** @var Authentication $authentification */
+        $authentification = $this->get('authentication.service');
+
+        return $authentification->refresh($request);
+    }
+
+    /**
+     * @View(statusCode=204)
+     */
+    public function patchUsersNotificationsAction(Request $request)
+    {
+        if ($request->get('token')){
+            $em = $this->getDoctrine()->getManager();
+            $user = $em->getRepository('UserBundle:User')->findOneBy(array('uniqueId' => $request->get('token')));
+            if ($user != null) {
+                if ($user->getReceivedNotifications() == 0) {
+                    $user->setReceivedNotifications(1);
+                } else {
+                    $user->setReceivedNotifications(0);
+                }
+                $em->persist($user);
+                $em->flush();
+            }
+        }
+    }
+
+    /**
+     * @View(statusCode=204)
+     */
+    public function patchUsersRevivalAction(Request $request)
+    {
+        if ($request->get('token')){
+            $em = $this->getDoctrine()->getManager();
+            $user = $em->getRepository('UserBundle:User')->findOneBy(array('uniqueId' => $request->get('token')));
+            if ($user != null) {
+                if ($user->getReceivedRevival() == 0) {
+                    $user->setReceivedRevival(1);
+                } else {
+                    $user->setReceivedRevival(0);
+                }
+                $em->persist($user);
+                $em->flush();
+            }
+        }
+    }
+
+    /**
+     * @View(statusCode=204)
+     */
+    public function patchUsersChallengeAction(Request $request)
+    {
+        if ($request->get('token')){
+            $em = $this->getDoctrine()->getManager();
+            $user = $em->getRepository('UserBundle:User')->findOneBy(array('uniqueId' => $request->get('token')));
+            if ($user != null) {
+                if ($user->getReceivedChallenges() == 0) {
+                    $user->setReceivedChallenges(1);
+                } else {
+                    $user->setReceivedChallenges(0);
+                }
+                $em->persist($user);
+                $em->flush();
+            }
+        }
+    }
+
+    /**
+     * @View(statusCode=204)
+     */
+    public function patchUsersNewsletterAction(Request $request)
+    {
+        if ($request->get('token')){
+            $em = $this->getDoctrine()->getManager();
+            $user = $em->getRepository('UserBundle:User')->findOneBy(array('uniqueId' => $request->get('token')));
+            if ($user != null) {
+                if ($user->getReceivedNewsletters() == 0) {
+                    $user->setReceivedNewsletters(1);
+                } else {
+                    $user->setReceivedNewsletters(0);
+                }
+                $em->persist($user);
+                $em->flush();
+            }
+        }
+    }
+
+    /**
+     * @View(statusCode=204)
+     */
+    public function patchUsersInformationAction(Request $request)
+    {
+        if ($request->get('token')){
+            $em = $this->getDoctrine()->getManager();
+            $user = $em->getRepository('UserBundle:User')->findOneBy(array('uniqueId' => $request->get('token')));
+            if ($user != null) {
+                if ($user->getReceivedInformations() == 0) {
+                    $user->setReceivedInformations(1);
+                } else {
+                    $user->setReceivedInformations(0);
+                }
+                $em->persist($user);
+                $em->flush();
+            }
+        }
+    }
+
+    /**
+     * @View(serializerGroups={"Default", "User", "UserDetails", "Challenge", "Brainee"})
+     */
+    public function getUserBadgesAction(User $user)
+    {
+        $badges = $user->getUserBadges();
+        /** @var User $me */
+        $me = $this->getUser();
+        if ($me && $me->getId() != $user->getId()) {
+            $em = $this->getDoctrine()->getManager();
+            /** @var UserBadge $badge */
+            foreach ($badges as $badge) {
+                $userBadge = $em->getRepository('UserBundle:UserBadge')->findOneBy(array('user' => $me->getId(), 'type' => $badge->getType()),
+                    array('id' => 'DESC'));
+                    if ($userBadge) {
+                    $badge->setHave(true);
+                }
+            }
+        }
+        return $this->view($badges, 200);
+    }
+
+    /**
+     * @View(serializerGroups={"Default", "User", "UserDetails"})
+     */
+    public function getUserAction(Request $request, User $user)
+    {
+        /** @var User $me */
+        $me = $this->getUser();
+        $em = $this->getDoctrine()->getManager();
+        if ($me != null) {
+            $user->setIsFollowing($this->getUser()->getFollowings()->contains($user));
+            $this->get('asynctask.service')->pushView(array('uid' => $me->getId(), 'pid' => $user->getId()));
+            $em->flush();
+        }
+        $badges = $user->getUserBadges();
+        /** @var User $me */
+        $me = $this->getUser();
+        if ($me && $me->getId() != $user->getId()) {
+            $em = $this->getDoctrine()->getManager();
+            /** @var UserBadge $badge */
+            foreach ($badges as $badge) {
+                $userBadge = $em->getRepository('UserBundle:UserBadge')->findOneBy(array('user' => $me->getId(), 'type' => $badge->getType()),
+                    array('id' => 'DESC'));
+                if ($userBadge) {
+                    $badge->setHave(true);
+                }
+            }
+        }
+        $user->setNbInteractions((int)$em->getRepository('DataBundle:Brainee')->setPlatform($this->getPlatform($request))->countAllBraineesUserInteracted($user->getId(), "likedCommented", $user->getActiveSort()));
+        $user->setNbBrainees((int)$em->getRepository('DataBundle:Brainee')->setPlatform($this->getPlatform($request))->countAllBraineesOfUser($user->getId()));
+
+
+        return $this->view($user, 200);
+    }
+
+    /**
+     * GET Route annotation.
+     *
+     * @View(serializerGroups={"Default", "User","UserMe","UserDetails", "UserPrivate", "TagLastBrainee", "Employee"})
+     * @Get("/me")
+     */
+    public function getMeAction(Request $request)
+    {
+        $this->forwardIfNotAuthenticated();
+        /** @var User $user */
+        $user = $this->getUser();
+        /** @var EntityManager $em */
+        $em = $this->getDoctrine()->getManager();
+
+        $user->setNbInteractions((int)$em->getRepository('DataBundle:Brainee')->setPlatform($this->getPlatform($request))->countAllBraineesUserInteracted($user->getId(), "likedCommented", $user->getActiveSort()));
+
+        $beforeLast = $user->getLastLogin();
+        $date = new \DateTime;
+        $user->setLastLogin($date);
+        if (!$request->headers->get('platform') && !$request->headers->get('Origin') != "widgets.braineet.com" && $user->getIsBrainer() == false) {
+            $user->setIsBrainer(true);
+            if ($user->getLanguage() == 'fr') {
+                $template = $this->get('twig')->loadTemplate('UserBundle:UserPlatform:fr.welcome_to_braineet.email.html.twig');
+            } else {
+                $template = $this->get('twig')->loadTemplate('UserBundle:UserPlatform:en.welcome_to_braineet.email.html.twig');
+            }
+            $properties = array (
+                "distinct_id" => $user->getEmail(),
+                "token" => "f636913b89694f1c21ea9b179b8d6726",
+                "time" => time(),
+                "campaign" => "welcome to braineet by email",
+                'language' => $user->getLanguage()
+            );
+            $trackingCode = base64_encode(json_encode(array("event" => "e-mail opened",
+                "properties" => $properties)));
+            $mp = \Mixpanel::getInstance("f636913b89694f1c21ea9b179b8d6726");
+            $mp->track("e-mail sent", $properties);
+
+            $context = array('user' => $user, 'urlTracking' => $trackingCode);
+            $context['platform'] = $user->getUserBrand()->getBrand()->getPlatform();
+            $subject = $template->renderBlock('subject', $context);
+            $textBody = $template->renderBlock('body_text', $context);
+            $htmlBody = $template->renderBlock('body_html', $context);
+
+            $this->get('asynctask.service')->pushEmail($user->getEmail(), $subject, $textBody, $htmlBody, 'thebraineetbros@braineet.com', 'The Braineet Bros');
+        }
+
+        $user->setLastLogin($beforeLast);
+
+        $user->setNbBrainees((int)$em->getRepository('DataBundle:Brainee')->setPlatform($this->getPlatform($request))->countAllBraineesOfUser($user->getId()));
+        if ($request->headers->get('version')) {
+            $version = floatval($request->headers->get('version'));
+        } else{
+            $version = 2.1;
+        }
+        if ($request->headers->get('platform') || $version < 2.1) {
+            $nb_notifications = (int)$em->getRepository('DataBundle:Notification')->setPlatform($this->getPlatform($request))
+                ->setVersion($this->getVersion($request))
+                ->countAllNotifications($user->getId());
+            $user->setNbNotification($nb_notifications);
+            $user->setNbFollowers((int)$em->getRepository('UserBundle:User')->setPlatform($this->getPlatform($request))->countFollowers($user));
+            $user->setNbFollowings((int)$em->getRepository('UserBundle:User')->setPlatform($this->getPlatform($request))->countFollowings($user));
+        }
+        if ($user->getIsBrand()) {
+            $user->getBrand()->setNbChallengeSinceLastYear(((int)$em->getRepository('DataBundle:Challenge')->setPlatform($this->getPlatform($request))->getNbChallengeLastYearByBrand($user->getBrand()->getId())));
+        }
+        if ($user->getEmployee()) {
+            $user->getEmployee()->getBrand()->setNbChallengeSinceLastYear(((int)$em->getRepository('DataBundle:Challenge')->setPlatform($this->getPlatform($request))->getNbChallengeLastYearByBrand($user->getEmployee()->getBrand()->getId())));
+        }
+
+        $context = SerializationContext::create();
+        if ($request->headers->get('platform')) {
+            $context->setGroups(array("Default", "User","UserMe", "UserPrivate", "UserDetails", "Employee"));
+        }
+        $context->setVersion($version);
+
+        return $this->view($user, 200)->setSerializationContext($context);
+    }
+
+    /**
+     * GET Route annotation.
+     *
+     * @Get("/ping")
+     * @View(serializerGroups={"Default", "User"})
+     */
+    public function getPingAction(Request $request)
+    {
+        $result = array();
+        /** @var User $user */
+        $user = $this->getUser();
+        if ($user != null) {
+            $result['isAuthenticated'] = true;
+        } else {
+            $result['isAuthenticated'] = false;
+        }
+
+        return $this->view($result, 200);
+    }
+
+    /**
+     * @View(serializerGroups={"Default", "User","UserMe", "UserPrivate", "UserDetails", "TagLastBrainee", "Employee"})
+     */
+    public function postUserEditAction(Request $request)
+    {
+        /** @var User $user */
+        $user = $this->container->get('security.context')->getToken()->getUser();
+        if (!is_object($user) || !$user instanceof UserInterface) {
+            throw new AccessDeniedException('This user does not have access to this section.');
+        }
+        $previousEmail = $user->getEmail();
+        $em = $this->getDoctrine()->getManager();
+
+        /** @var $dispatcher \Symfony\Component\EventDispatcher\EventDispatcherInterface */
+        $dispatcher = $this->container->get('event_dispatcher');
+
+        $event = new GetResponseUserEvent($user, $request);
+        $dispatcher->dispatch(FOSUserEvents::PROFILE_EDIT_INITIALIZE, $event);
+
+        if (null !== $event->getResponse()) {
+            return $this->view($event->getResponse(), 200);
+        }
+
+        /** @var $formFactory \FOS\UserBundle\Form\Factory\FactoryInterface */
+        $formFactory = $this->container->get('fos_user.profile.form.factory');
+
+        $form = $formFactory->createForm();
+        $form->setData($user);
+        $form->handleRequest($request);
+
+        if ($form->isValid()) {
+            /** @var $userManager \FOS\UserBundle\Model\UserManagerInterface */
+            $userManager = $this->container->get('fos_user.user_manager');
+            $em = $this->getDoctrine()->getManager();
+
+            $event = new FormEvent($form, $request);
+            $dispatcher->dispatch(FOSUserEvents::PROFILE_EDIT_SUCCESS, $event);
+
+            $userManager->updateUser($user);
+            if ($user->getEmail() != $previousEmail) {
+                $company = $em->getRepository('DataBundle:Company')->findOneBy(array('email' => $user->getEmail()));
+                if ($company !== null) {
+                    $user->setEmail($previousEmail);
+                    $em->persist($user);
+                    $em->flush();
+                    throw new HttpException(409, 'Email is already used');
+                }
+                if ($user->getIsBrainer()) {
+                    $directory = "User";
+                } else {
+                    $directory = "UserPlatform";
+                }
+                if ($user->getLanguage() == 'fr') {
+                    $template = $this->get('twig')->loadTemplate('UserBundle:'.$directory.':fr.patch.email.html.twig');
+                } else {
+                    $template = $this->get('twig')->loadTemplate('UserBundle:'.$directory.':en.patch.email.html.twig');
+                }
+                $properties = array (
+                        "distinct_id" => $user->getEmail(),
+                        "token" => "f636913b89694f1c21ea9b179b8d6726",
+                        "time" => time(),
+                        "campaign" => "edit by email",
+                        'language' => $user->getLanguage()
+                    );
+                $trackingCode = base64_encode(json_encode(array("event" => "e-mail opened",
+                    "properties" => $properties)));
+                $mp = \Mixpanel::getInstance("f636913b89694f1c21ea9b179b8d6726");
+                $mp->track("e-mail sent", $properties);
+
+                $context = array('user' => $this->getUser(), 'code' => $user->getConfirmationToken(), 'urlTracking' => $trackingCode);
+                if ($user->getIsBrainer() == false) {
+                    $context['platform'] = $user->getUserBrand()->getBrand()->getPlatform();
+                }
+                $subject = $template->renderBlock('subject', $context);
+                $textBody = $template->renderBlock('body_text', $context);
+                $htmlBody = $template->renderBlock('body_html', $context);
+
+                $this->get('asynctask.service')->pushEmail($user->getEmail(), $subject, $textBody, $htmlBody, 'thebraineetbros@braineet.com', 'The Braineet Bros');
+                $user->setEnabled(true);
+                $user->setConfirmation(true);
+                $user->setIsFakeEmail(false);
+                $em->persist($user);
+                $em->flush();
+                $this->get('exchange.push.service')->pushMe($user->getUniqueId(), 'edit', $user);
+            }
+
+            $user->setNbBrainees((int)$em->getRepository('DataBundle:Brainee')->setPlatform($this->getPlatform($request))->countAllBraineesOfUser($user->getId()));
+            $user->setNbInteractions((int)$em->getRepository('DataBundle:Brainee')->setPlatform($this->getPlatform($request))->countAllBraineesUserInteracted($user->getId(), "likedCommented", $user->getActiveSort()));
+
+            if ($request->headers->get('version')) {
+                $version = floatval($request->headers->get('version'));
+            } else{
+                $version = 2.1;
+            }
+            if ($request->headers->get('platform') || $version < 2.1) {
+                $nb_notifications = (int)$em->getRepository('DataBundle:Notification')->setPlatform($this->getPlatform($request))
+                    ->setVersion($this->getVersion($request))
+                    ->countAllNotifications($user->getId());
+                $user->setNbNotification($nb_notifications);
+                $user->setNbFollowers((int)$em->getRepository('UserBundle:User')->setPlatform($this->getPlatform($request))->countFollowers($user));
+                $user->setNbFollowings((int)$em->getRepository('UserBundle:User')->setPlatform($this->getPlatform($request))->countFollowings($user));
+            }
+            if ($user->getIsBrand()) {
+                $user->getBrand()->setNbChallengeSinceLastYear(((int)$em->getRepository('DataBundle:Challenge')->setPlatform($this->getPlatform($request))->getNbChallengeLastYearByBrand($user->getBrand()->getId())));
+            }
+            if ($user->getEmployee()) {
+                $user->getEmployee()->getBrand()->setNbChallengeSinceLastYear(((int)$em->getRepository('DataBundle:Challenge')->setPlatform($this->getPlatform($request))->getNbChallengeLastYearByBrand($user->getEmployee()->getBrand()->getId())));
+            }
+
+            if ($user->getUserBrand() && $user->getUserBrand()->getIdRcw() !== null) {
+                $this->get('auchan.rw.service')->update($user);
+            }
+
+            $context = SerializationContext::create();
+            $context->setVersion($version);
+            if ($request->headers->get('platform')) {
+                $context->setGroups(array("Default", "User","UserMe", "UserPrivate", "UserDetails", "Employee"));
+            }
+
+            return $this->view($user, 200)->setSerializationContext($context);
+        }
+
+        foreach ($form->all() as $name => $child) {
+            foreach ($child->getErrors() as $error) {
+                if ($name == 'email') {
+                    throw new HttpException(409, 'Email is already used');
+                }
+            }
+        }
+        return $this->view($form, 400);
+    }
+
+    /**
+     * @View(statusCode=204)
+     */
+    public function deleteUserAction(User $user)
+    {
+        $this->forwardIfisCurrentUser($user);
+        $em = $this->getDoctrine()->getManager();
+        $user->setEnabled(false);
+        $em->persist($user);
+        $em->flush();
+    }
+
+    /**
+     * @View(statusCode=204)
+     */
+    public function followUserAction(User $user)
+    {
+        $this->forwardIfNotAuthenticated();
+        $em = $this->getDoctrine()->getManager();
+
+        /** @var User $currentUser */
+        $currentUser = $this->getUser();
+        if ($user->getId() == $currentUser->getId()) {
+            throw new HttpException(400, 'You can\'t follow yourself');
+        }
+        $following_already = $em->getRepository('UserBundle:User')->findOneFollowing($currentUser->getId(), $user->getId());
+        if ($following_already !== null) {
+            throw new HttpException(409, 'User is already follow');
+        }
+        $currentUser->addFollowing($user);
+        $em->persist($currentUser);
+
+        $this->get('user.badge.service')->badgeAlone('follow', $currentUser);
+        if ($user->getNbFollowers() == 0) {
+            $this->get('user.badge.service')->badgeAlone('firstBeFollow', $user);
+        } else if ($user->getNbFollowers() == 9) {
+            $this->get('user.badge.service')->badgeAlone('tenBeFollow', $user);
+        } else if ($user->getNbFollowers() == 99) {
+            $this->get('user.badge.service')->badgeAlone('hundredBeFollow', $user);
+        }
+
+        $em->flush();
+
+        /** @var Notification $notificationService */
+        $notificationService = $this->get('notification.service');
+        $notificationService->notifiedWithFollower($user, $currentUser);
+
+        /** @var Activity $activityService */
+        $activityService = $this->get('activity.service');
+        $activityService->activityWithFollowing($currentUser, $user);
+
+        $em->flush();
+    }
+
+    /**
+     * @View(statusCode=204)
+     */
+    public function patchUserInfoAction(Request $request)
+    {
+        $this->forwardIfNotAuthenticated();
+        $em = $this->getDoctrine()->getManager();
+
+        /** @var User $currentUser */
+        $currentUser = $this->getUser();
+
+        if ($request->get('gender') !== null) {
+            $currentUser->setGender($request->get('gender'));
+        }
+        if ($request->get('profession') !== null) {
+            $currentUser->setProfession($request->get('profession'));
+        }
+        if ($request->get('tutorial') !== null) {
+            $currentUser->setTutorial(false);
+            $notificationService = $this->get('notification.service');
+            $notificationService->notifiedWithYourself('welcome', $currentUser);
+        }
+        if ($request->get('international') !== null) {
+            $currentUser->setInternational($request->get('international'));
+            $this->get('user.badge.service')->badgeAlone('braineetInternational', $currentUser);
+        }
+        if ($request->get('language') !== null && ($request->get('language') == 'fr' || $request->get('language') == 'en')) {
+            $currentUser->setLanguage($request->get('language'));
+        }
+        if ($request->get('active_sort') !== null) {
+            $currentUser->setActiveSort($request->get('active_sort'));
+        }
+        if ($request->get('job_title') !== null) {
+            $currentUser->setJobTitle($request->get('job_title'));
+        }
+        if ($request->get('job_company') !== null) {
+            $currentUser->setJobCompany($request->get('job_company'));
+        }
+        if ($request->get('twitter_url') !== null) {
+            $currentUser->setTwitterUrl($request->get('twitter_url'));
+        }
+        if ($request->get('linkedin_url') !== null) {
+            $currentUser->setLinkedinUrl($request->get('linkedin_url'));
+        }
+        if ($request->get('age') !== null) {
+            $year = new \Datetime($request->get('age'). ' years ago');
+            $currentUser->setAge($year);
+        }
+        if ($request->get('birthday') !== null) {
+            $year = new \Datetime($request->get('birthday'));
+            $currentUser->setAge($year);
+        }
+        if ($request->get('description') !== null) {
+            $currentUser->setDescription($request->get('description'));
+        }
+        
+        if ($request->get('country') !== null) {
+            $country = $em->getRepository('UserBundle:Country')->find($request->get('country'));
+            if ($country !== null) {
+                $currentUser->setCountry($country);
+                if (!$currentUser->getCountrys()->contains($country)) {
+                    $currentUser->addCountry($country);
+                }
+            }
+        }
+        if ($request->get('receivedInformations') !== null) {
+            $currentUser->setReceivedInformations($request->get('receivedInformations'));
+        }
+        if ($request->get('receivedNewsletters') !== null) {
+            $currentUser->setReceivedNewsletters($request->get('receivedNewsletters'));
+        }
+        if ($request->get('receivedNotifications') !== null) {
+            $currentUser->setReceivedNotifications($request->get('receivedNotifications'));
+        }
+        if ($request->get('receivedRevival') !== null) {
+            $currentUser->setReceivedRevival($request->get('receivedRevival'));
+        }
+        if ($request->get('receivedChallenges') !== null) {
+            $currentUser->setReceivedChallenges($request->get('receivedChallenges'));
+        }
+        $em->persist($currentUser);
+        $em->flush();
+        if ($request->get('country') !== null || ($request->get('language') !== null && ($request->get('language') == 'fr' || $request->get('language') == 'en'))) {
+            if ($currentUser->getUserBrand() && $currentUser->getUserBrand()->getIdRcw() !== null) {
+                $this->get('auchan.rw.service')->update($currentUser);
+            }
+        }
+        $this->get('exchange.push.service')->pushMe($currentUser->getUniqueId(), 'edit', $currentUser);
+    }
+
+    /**
+     * @View(statusCode=204)
+     */
+    public function patchUserTutorialAction()
+    {
+        $this->forwardIfNotAuthenticated();
+        $em = $this->getDoctrine()->getManager();
+        /** @var User $currentUser */
+        $currentUser = $this->getUser();
+
+
+        if ($currentUser->getTutorial()) {
+            $currentUser->setTutorial(false);
+            $notificationService = $this->get('notification.service');
+            $notificationService->notifiedWithYourself('welcome', $currentUser);
+
+            $em->persist($currentUser);
+            $em->flush();
+        }
+
+        if ($currentUser->getIsFakeEmail()) {
+            throw new HttpException(404, 'Email box not found');
+        }
+    }
+
+    /**
+     * @View(serializerGroups={"Default", "User","UserMe", "UserPrivate", "UserDetails", "TagLastBrainee", "Employee"})
+     */
+    public function postUserPictureAction(Request $request)
+    {
+        $em = $this->getDoctrine()->getManager();
+
+        $form = $this->createForm(new PhotoType(), array());
+
+        $form->handleRequest($request);
+        if ($form->isValid()) {
+            $data = $form->getData();
+            /** @var User $user */
+            $user = $this->getUser();
+            if ($user != null) {
+                $extUrl = 'upload/profile/'.md5($user->getId() . '_' . uniqid());
+            } else {
+                $extUrl = 'upload/profile/'.md5(time() . '_' . uniqid());
+            }
+            $pic = $this->getPhotoUploader()->upload($extUrl, $data['photo']);
+            if ($user != null) {
+                $user->setPicture($pic['url']);
+                $user->setExtPicture($pic['extension']);
+                $em->persist($user);
+                $this->get('user.badge.service')->badgeAlone('changePicture', $user);
+                $em->flush();
+
+
+                $user->setNbBrainees((int)$em->getRepository('DataBundle:Brainee')->setPlatform($this->getPlatform($request))->countAllBraineesOfUser($user->getId()));
+                $user->setNbInteractions((int)$em->getRepository('DataBundle:Brainee')->setPlatform($this->getPlatform($request))->countAllBraineesUserInteracted($user->getId(), "likedCommented", $user->getActiveSort()));
+
+                if ($request->headers->get('version')) {
+                    $version = floatval($request->headers->get('version'));
+                } else{
+                    $version = 2.1;
+                }
+                if ($request->headers->get('platform') || $version < 2.1) {
+                    $nb_notifications = (int)$em->getRepository('DataBundle:Notification')->setPlatform($this->getPlatform($request))
+                        ->setVersion($this->getVersion($request))
+                        ->countAllNotifications($user->getId());
+                    $user->setNbNotification($nb_notifications);
+                    $user->setNbFollowers((int)$em->getRepository('UserBundle:User')->setPlatform($this->getPlatform($request))->countFollowers($user));
+                    $user->setNbFollowings((int)$em->getRepository('UserBundle:User')->setPlatform($this->getPlatform($request))->countFollowings($user));
+                }
+                if ($user->getIsBrand()) {
+                    $user->getBrand()->setNbChallengeSinceLastYear(((int)$em->getRepository('DataBundle:Challenge')->setPlatform($this->getPlatform($request))->getNbChallengeLastYearByBrand($user->getBrand()->getId())));
+                }
+                if ($user->getEmployee()) {
+                    $user->getEmployee()->getBrand()->setNbChallengeSinceLastYear(((int)$em->getRepository('DataBundle:Challenge')->setPlatform($this->getPlatform($request))->getNbChallengeLastYearByBrand($user->getEmployee()->getBrand()->getId())));
+                }
+
+                $context = SerializationContext::create();
+                $context->setVersion($version);
+
+                return $this->view($user, 200)->setSerializationContext($context);
+            } else {
+                return $pic;
+            }
+        }
+
+        return $this->view($form, 400);
+    }
+
+    /**
+     * @View(serializerGroups={"Default", "User","UserMe", "UserPrivate", "UserDetails", "TagLastBrainee", "Employee"})
+     */
+    public function postUserCoverAction(Request $request)
+    {
+        $this->forwardIfNotAuthenticated();
+        $em = $this->getDoctrine()->getManager();
+
+        $form = $this->createForm(new PhotoType(), array());
+
+        $form->handleRequest($request);
+        if ($form->isValid()) {
+            $data = $form->getData();
+            /** @var User $user */
+            $user = $this->getUser();
+            if ($user != null) {
+                $extUrl = 'upload/cover/'.md5($user->getId() . '_' . uniqid());
+            } else {
+                $extUrl = 'upload/cover/'.md5(time() . '_' . uniqid());
+            }
+            $pic = $this->getPhotoUploader()->uploadCover($extUrl, $data['photo']);
+
+            $user->setCover($pic['url']);
+            $user->setExtCover($pic['extension']);
+            $em->persist($user);
+            $this->get('user.badge.service')->badgeAlone('changeCover', $user);
+            $em->flush();
+
+
+
+            $user->setNbBrainees((int)$em->getRepository('DataBundle:Brainee')->setPlatform($this->getPlatform($request))->countAllBraineesOfUser($user->getId()));
+            $user->setNbInteractions((int)$em->getRepository('DataBundle:Brainee')->setPlatform($this->getPlatform($request))->countAllBraineesUserInteracted($user->getId(), "likedCommented", $user->getActiveSort()));
+
+            if ($request->headers->get('version')) {
+                $version = floatval($request->headers->get('version'));
+            } else{
+                $version = 2.1;
+            }
+            if ($request->headers->get('platform') || $version < 2.1) {
+                $nb_notifications = (int)$em->getRepository('DataBundle:Notification')->setPlatform($this->getPlatform($request))
+                    ->setVersion($this->getVersion($request))
+                    ->countAllNotifications($user->getId());
+                $user->setNbNotification($nb_notifications);
+                $user->setNbFollowers((int)$em->getRepository('UserBundle:User')->setPlatform($this->getPlatform($request))->countFollowers($user));
+                $user->setNbFollowings((int)$em->getRepository('UserBundle:User')->setPlatform($this->getPlatform($request))->countFollowings($user));
+            }
+            if ($user->getIsBrand()) {
+                $user->getBrand()->setNbChallengeSinceLastYear(((int)$em->getRepository('DataBundle:Challenge')->setPlatform($this->getPlatform($request))->getNbChallengeLastYearByBrand($user->getBrand()->getId())));
+            }
+            if ($user->getEmployee()) {
+                $user->getEmployee()->getBrand()->setNbChallengeSinceLastYear(((int)$em->getRepository('DataBundle:Challenge')->setPlatform($this->getPlatform($request))->getNbChallengeLastYearByBrand($user->getEmployee()->getBrand()->getId())));
+            }
+
+            $context = SerializationContext::create();
+            $context->setVersion($version);
+            if ($request->headers->get('platform')) {
+                $context->setGroups(array("Default", "User","UserMe", "UserPrivate", "UserDetails", "Employee"));
+            }
+
+            return $this->view($user, 200)->setSerializationContext($context);
+        }
+
+        return $this->view($form, 400);
+    }
+
+    protected function getPhotoUploader()
+    {
+        return $this->get('storage.photo_uploader');
+    }
+
+    /**
+     * @View(statusCode=204)
+     */
+    public function unfollowUserAction(User $user)
+    {
+        $this->forwardIfNotAuthenticated();
+        $em = $this->getDoctrine()->getManager();
+
+        /** @var User $currentUser */
+        $currentUser = $this->getUser();
+        $following = $em->getRepository('UserBundle:User')->findOneFollowing($currentUser->getId(), $user->getId());
+        if ($following === null) {
+            throw new HttpException(409, 'User is already unfollow');
+        }
+        $currentUser->removeFollowing($user);
+        $em->persist($currentUser);
+        $em->flush();
+    }
+
+    /**
+     * @param $email
+     * @return Response
+     * @throws \Symfony\Component\HttpKernel\Exception\HttpException
+     * @throws \Symfony\Component\HttpKernel\Exception\NotFoundHttpException
+     * @Patch("/users/{email}/password/request")
+     */
+    public function requestUserPasswordAction($email, Request $request)
+    {
+        /** @var $user UserInterface */
+        $user = $this->container->get('fos_user.user_manager')->findUserByUsernameOrEmail($email);
+
+
+        if ($request->headers->get('platform') == "auchan_tmp") {
+            $translatable = $this->get('gedmo.listener.translatable');
+            $user = $this->get('auchan.rw.service')->forgetPassword($user, $email, $translatable->getTranslatableLocale());
+        }
+        if (null === $user) {
+            throw new NotFoundHttpException();
+        }
+
+        if ($user->isPasswordRequestNonExpired($this->container->getParameter('fos_user.resetting.token_ttl'))) {
+            throw new HttpException(409, 'New password is already request');
+        }
+
+        if (null === $user->getConfirmationToken()) {
+            /** @var $tokenGenerator \FOS\UserBundle\Util\TokenGeneratorInterface */
+            $tokenGenerator = $this->container->get('fos_user.util.token_generator');
+            $user->setConfirmationToken($tokenGenerator->generateToken());
+        }
+
+        $this->container->get('fos_user.mailer')->sendResettingEmailMessage($user);
+        $user->setPasswordRequestedAt(new \DateTime());
+        $this->container->get('fos_user.user_manager')->updateUser($user);
+
+
+        $response = new Response();
+        $response->setStatusCode(204);
+        return $response;
+    }
+
+    /**
+     * @param $token
+     * @return Response
+     * @throws \Symfony\Component\HttpKernel\Exception\NotFoundHttpException
+     * @Get("/users/{token}/token")
+     * @View(statusCode=204)
+     */
+    public function getUsersTokenAction($token)
+    {
+        /** @var $userManager \FOS\UserBundle\Model\UserManagerInterface */
+        $userManager = $this->container->get('fos_user.user_manager');
+
+        $user = $userManager->findUserByConfirmationToken($token);
+
+        if (null === $user) {
+            throw new NotFoundHttpException(sprintf('The user with "confirmation token" does not exist for value "%s"', $token));
+        }
+    }
+
+    /**
+     * @param $token
+     * @param Request $request
+     * @return ViewResponse|null|Response
+     * @throws \Symfony\Component\Security\Core\Exception\AccessDeniedException
+     */
+    public function postUsersPasswordResetsAction($token, Request $request)
+    {
+        /** @var $formFactory \FOS\UserBundle\Form\Factory\FactoryInterface */
+        $formFactory = $this->get('fos_user.resetting.form.factory');
+        /** @var $userManager \FOS\UserBundle\Model\UserManagerInterface */
+        $userManager = $this->get('fos_user.user_manager');
+        /** @var $dispatcher \Symfony\Component\EventDispatcher\EventDispatcherInterface */
+        $dispatcher = $this->get('event_dispatcher');
+
+        /** @var User $user */
+        $user = $userManager->findUserByConfirmationToken($token);
+
+        if (null === $user) {
+            throw new NotFoundHttpException(sprintf('The user with "confirmation token" does not exist for value "%s"', $token));
+        }
+
+        $event = new GetResponseUserEvent($user, $request);
+        $dispatcher->dispatch(FOSUserEvents::RESETTING_RESET_INITIALIZE, $event);
+
+        if (null !== $event->getResponse()) {
+            return $event->getResponse();
+        }
+
+        $form = $formFactory->createForm();
+        $form->setData($user);
+
+        $form->handleRequest($request);
+
+        if ($form->isValid()) {
+            $plainPassword = $user->getPlainPassword();
+            $event = new FormEvent($form, $request);
+            $dispatcher->dispatch(FOSUserEvents::RESETTING_RESET_SUCCESS, $event);
+
+            $userManager->updateUser($user);
+
+            if ($user->getUserBrand() && $user->getUserBrand()->getIdRcw() !== null) {
+                $this->get('auchan.rw.service')->resetPassword($user, $plainPassword);
+            }
+
+
+            $response = new Response();
+            $response->setStatusCode(204);
+            return $response;
+        }
+
+        return $this->view($form, 400);
+    }
+
+    public function postUserPasswordAction(Request $request)
+    {
+        /** @var User $user */
+        $user = $this->getUser();
+        if (!is_object($user) || !$user instanceof UserInterface) {
+            throw new AccessDeniedException('This user does not have access to this section.');
+        }
+
+        /** @var $formFactory \FOS\UserBundle\Form\Factory\FactoryInterface */
+        $formFactory = $this->container->get('fos_user.change_password.form.factory');
+
+        $form = $formFactory->createForm();
+        $form->setData($user);
+        $form->handleRequest($request);
+
+        if ($form->isValid()) {
+            /** @var $userManager \FOS\UserBundle\Model\UserManagerInterface */
+            $userManager = $this->container->get('fos_user.user_manager');
+            $plainPassword = $user->getPlainPassword();
+            if ($user->getUserBrand() && $user->getUserBrand()->getIdRcw() !== null) {
+                $this->get('auchan.rw.service')->update($user, $request->get('user_change_password')['current_password'], $plainPassword);
+            }
+            $userManager->updateUser($user);
+
+
+            $response = new Response();
+            $response->setStatusCode(204);
+            return $response;
+        }
+        return $this->view($form, 400);
+    }
+
+    protected function forwardIfNotAuthenticated($message='warn.user.notAuthenticated')
+    {
+        if ($this->getUser() === null || $this->get('security.context')->isGranted('ROLE_BRAINEET') === false) {
+            throw new AccessDeniedHttpException($message);
+        }
+    }
+    protected function forwardIfisCurrentUser(User $user, $message='warn.user.notAuthenticated')
+    {
+        if ($this->getUser() === null || $this->get('security.context')->isGranted('ROLE_BRAINEET') === false) {
+            throw new AccessDeniedHttpException($message);
+        }
+
+        if ($user) {
+            if ($user->getId() != $this->getUser()->getId())
+            {
+                throw new AccessDeniedHttpException('warn.user.notCurrentAuthenticated');
+            }
+        }
+    }
+
+    /**
+     * @View(statusCode=204)
+     */
+    public function postUsersRejectsAction(Request $request)
+    {
+        $events = $request->get('mandrill_events');
+        if ($events == null) {
+            throw new HttpException(400, 'invalid parameters');
+        }
+        $em = $this->getDoctrine()->getManager();
+        $events = json_decode($events);
+        foreach ($events as $event) {
+            $email = $event->msg->email;
+            $user = $em->getRepository('UserBundle:User')->findOneBy(array('email' => $email));
+            if ($user !== null) {
+                $user->setIsFakeEmail(true);
+                $user->setConfirmation(true);
+                $em->persist($user);
+            } else {
+                $invitation = $em->getRepository('UserBundle:Invitation')->findOneBy(array('email' => $email));
+                if ($invitation !== null) {
+                    $em->remove($invitation);
+                }
+            }
+        }
+        $em->flush();
+    }
+
+    protected function checkUserPassword(User $user, $password)
+    {
+        $factory = $this->get('security.encoder_factory');
+        /** @var PlaintextPasswordEncoder $encoder */
+        $encoder = $factory->getEncoder($user);
+        if(!$encoder){
+            return false;
+        }
+        return $encoder->isPasswordValid($user->getPassword(), $password, $user->getSalt());
+    }
+
+    public  function deleteUserLogoutAction()
+    {
+        $security = $this->get('security.context');
+        $token = new AnonymousToken(null, new User());
+        $security->setToken($token);
+        $this->get('session')->invalidate();
+    }
+
+    private function getPlatform(Request $request)
+    {
+        $name = $request->headers->get('platform');
+
+        if (!$name) {
+            return null;
+        }
+        $platform = $this->getDoctrine()->getRepository('UserBundle:Platform')->findOneBy(array('name' => $name)) ;
+        if (is_object($platform)) {
+            return $platform->getBrand();
+        }
+        return null;
+    }
+
+    private function urlExists($url) {
+        $ch = curl_init();
+        curl_setopt($ch, CURLOPT_URL,$url);
+        curl_setopt($ch, CURLOPT_NOBODY, 1);
+        curl_setopt($ch, CURLOPT_FAILONERROR, 1);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+
+        if(curl_exec($ch)!==FALSE) {
+            return true;
+        } else {
+            return false;
+        }
+    }
+
+    private function getByTagName($name)
+    {
+        $replace = array(
+            'À'=>'A', 'Á'=>'A', 'Â'=>'A', 'Ã'=>'A', 'Ä'=>'Ae', 'Å'=>'A', 'Æ'=>'A', 'Ă'=>'A',
+            'à'=>'a', 'á'=>'a', 'â'=>'a', 'ã'=>'a', 'ä'=>'ae', 'å'=>'a', 'ă'=>'a', 'æ'=>'ae',
+            'þ'=>'b', 'Þ'=>'B',
+            'Ç'=>'C', 'ç'=>'c',
+            'È'=>'E', 'É'=>'E', 'Ê'=>'E', 'Ë'=>'E',
+            'è'=>'e', 'é'=>'e', 'ê'=>'e', 'ë'=>'e',
+            'Ğ'=>'G', 'ğ'=>'g',
+            'Ì'=>'I', 'Í'=>'I', 'Î'=>'I', 'Ï'=>'I', 'İ'=>'I', 'ı'=>'i', 'ì'=>'i', 'í'=>'i', 'î'=>'i', 'ï'=>'i',
+            'Ñ'=>'N',
+            'Ò'=>'O', 'Ó'=>'O', 'Ô'=>'O', 'Õ'=>'O', 'Ö'=>'Oe', 'Ø'=>'O', 'ö'=>'oe', 'ø'=>'o',
+            'ð'=>'o', 'ñ'=>'n', 'ò'=>'o', 'ó'=>'o', 'ô'=>'o', 'õ'=>'o',
+            'Š'=>'S', 'š'=>'s', 'Ş'=>'S', 'ș'=>'s', 'Ș'=>'S', 'ş'=>'s', 'ß'=>'ss',
+            'ț'=>'t', 'Ț'=>'T',
+            'Ù'=>'U', 'Ú'=>'U', 'Û'=>'U', 'Ü'=>'Ue',
+            'ù'=>'u', 'ú'=>'u', 'û'=>'u', 'ü'=>'ue',
+            'Ý'=>'Y',
+            'ý'=>'y', 'ÿ'=>'y',
+            'Ž'=>'Z', 'ž'=>'z'
+        );
+        $name = strtr($name, $replace);
+        return strtolower(preg_replace("/[^a-zA-Z0-9]+/", "", $name));
+
+    }
+
+    private function getVersion(Request $request) {
+        if ($request->headers->get('version')) {
+            $version = floatval($request->headers->get('version'));
+            if ($version < 2.1) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
