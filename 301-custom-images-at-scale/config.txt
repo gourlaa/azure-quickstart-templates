@@ -8,7 +8,7 @@ services:
             - { name: kernel.event_listener, event: kernel.request, method: onLateKernelRequest, priority: -10 }
             # loggable hooks user username if one is in security context
             - { name: kernel.event_listener, event: kernel.request, method: onKernelRequest }
-            - { name: kernel.event_listener, event: kernel.response, method: onKernelResponse, priority: 20 }
+            - { name: kernel.event_listener, event: kernel.response, method: onKernelResponse, priority: 2 }
 
     gedmo.listener.translatable:
         class: Gedmo\Translatable\TranslatableListener

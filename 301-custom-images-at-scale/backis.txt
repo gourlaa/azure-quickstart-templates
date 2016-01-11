@@ -55,6 +55,7 @@ class DoctrineExtensionListener implements ContainerAwareInterface
         if ($securityContext->getToken()) {
             /** @var User $user */
             $user = $securityContext->getToken()->getUser();
+            $event->getRequest()->headers->set('is_connected', true);
         }
         if ($user !== null && $user !== 'anon.') {
             $lang = $user->getLanguage();
@@ -81,7 +82,7 @@ class DoctrineExtensionListener implements ContainerAwareInterface
     {
         $response = $event->getResponse();
         $request = $event->getRequest();
-        if ($request->headers->get('Authorization') !== null) {
+        if ($request->headers->get('is_connected') !== null) {
             $response->headers->set('Cache-Control', "max-age=0,private,s-maxage=0,no-cache");
         }
     }
