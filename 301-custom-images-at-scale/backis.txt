@@ -79,11 +79,10 @@ class DoctrineExtensionListener implements ContainerAwareInterface
      */
     public function onKernelResponse(FilterResponseEvent $event)
     {
-        $securityContext = $this->container->get('security.context', ContainerInterface::NULL_ON_INVALID_REFERENCE);
         $response = $event->getResponse();
-
-        if ($securityContext->getToken()) {
-			$response->headers->set('Cache-Control', "max-age=0,private,s-maxage=0,no-cache");
-		}
+        $request = $event->getRequest();
+        if ($request->headers->get('Authorization')) {
+            $response->headers->set('Cache-Control', "max-age=0,private,s-maxage=0,no-cache");
+        }
     }
 }
