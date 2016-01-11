@@ -55,10 +55,10 @@ class DoctrineExtensionListener implements ContainerAwareInterface
         if ($securityContext->getToken()) {
             /** @var User $user */
             $user = $securityContext->getToken()->getUser();
-            $event->getRequest()->headers->set('is_connected', true);
         }
         if ($user !== null && $user !== 'anon.') {
             $lang = $user->getLanguage();
+            $event->getRequest()->headers->set('is_connected', true);
         }
         else if ($event->getRequest()->headers->get('language') !== null) {
             $lang = $event->getRequest()->headers->get('language');
