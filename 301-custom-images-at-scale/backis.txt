@@ -53,7 +53,7 @@ class DoctrineExtensionListener implements ContainerAwareInterface
         $request = $event->getRequest();
         $user = 'anon.';
         if ($securityContext->getToken()) {
-            header('Cache-Control: max-age=0;private;s-maxage=0;no-cache');
+            header('Cache-Control: max-age=0,private,s-maxage=0,no-cache');
             /** @var User $user */
             $user = $securityContext->getToken()->getUser();
         }
