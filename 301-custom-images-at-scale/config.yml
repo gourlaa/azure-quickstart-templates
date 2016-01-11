@@ -334,7 +334,7 @@ fos_http_cache:
                 headers:
                     overwrite: false
                     cache_control: { public: true, max_age: 3600, s_maxage: 3600 }
-                    vary: [Accept-Encoding, Accept-Language]
+                    vary: [Accept-Encoding, Accept-Language, Authorization]
             -
                 match:
                     path: ^/
