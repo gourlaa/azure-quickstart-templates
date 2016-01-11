@@ -81,7 +81,7 @@ class DoctrineExtensionListener implements ContainerAwareInterface
     {
         $response = $event->getResponse();
         $request = $event->getRequest();
-        if ($request->headers->get('Authorization')) {
+        if ($request->headers->get('Authorization') !== null) {
             $response->headers->set('Cache-Control', "max-age=0,private,s-maxage=0,no-cache");
         }
     }
