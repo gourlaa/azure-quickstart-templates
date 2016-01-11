@@ -1,120 +1,87 @@
+#
+# This is an example VCL file for Varnish.
+#
+# It does not do anything by default, delegating control to the
+# builtin VCL. The builtin VCL is called when there is no explicit
+# return statement.
+#
+# See the VCL chapters in the Users Guide at https://www.varnish-cache.org/docs/
+# and http://varnish-cache.org/trac/wiki/VCLExamples for more examples.
 
-ServerAdmin             pierre.gourlaouen@braineet.com
+# Marker to tell the VCL compiler that this VCL has been adapted to the
+# new 4.0 format.
+vcl 4.0;
 
-HostnameLookups Off
+# Default backend definition. Set this to point to your content server.
+backend default {
+    .host = "10.0.1.6";
+    .port = "80";
+}
+sub vcl_recv {
+set req.http.Surrogate-Capability = "abc=ESI/1.0";
 
-ServerName 127.0.0.1
+if (req.restarts == 0) {
+    if (req.http.x-forwarded-for) {
+        set req.http.X-Forwarded-For =
+        req.http.X-Forwarded-For + ", " + client.ip;
+    } else {
+        set req.http.X-Forwarded-For = client.ip;
+    }
+}
 
-<Directory "/var/www">
-        AllowOverride All
-        Order allow,deny
-        Allow from all
-</Directory>
+if (req.method  != "GET" &&
+    req.method  != "HEAD" &&
+    req.method  != "PUT" &&
+    req.method  != "POST" &&
+    req.method  != "TRACE" &&
+    req.method  != "OPTIONS" &&
+    req.method  != "DELETE") {
+        /* Non-RFC2616 or CONNECT which is weird. */
+        return (pipe);
+    }
+if (req.http.Authorization || req.http.Authenticate)
+{
+  return (pass);
+}
 
-<Directory "/var/www/api/web/">
-        AllowOverride All
-        Order allow,deny
-        Allow from all
-</Directory>
+if (req.method  != "GET" && req.method  != "HEAD") {
+    /* We only deal with GET and HEAD by default */
+    return (pass);
+}
 
-<Virtualhost *:80>
-  ServerName braineet.com
-ServerAlias www.braineet.com
-  ServerAdmin pierre.gourlaouen@braineet.com
+return (hash);
 
-  DocumentRoot "/var/www/app"
-  Alias /data /var/www/api/web/
+}
 
-  ErrorLog ${APACHE_LOG_DIR}/braineet_error.log
-  LogLevel warn
-  CustomLog ${APACHE_LOG_DIR}/braineet_access.log combined
+sub vcl_hash {
+    ### these 2 entries are the default ones used for vcl. Below we add our own.
+    hash_data(req.url);
+    hash_data(req.http.host);
 
-  RewriteEngine on
-</VirtualHost>
+    if( req.http.Cookie ~ "language" ) {
+        hash_data(regsub( req.http.Cookie, "^.*?language=([^;]*);*.*$", "\1" ));
+    }
 
-<VirtualHost *:80>
-  ServerAdmin pierre.gourlaouen@braineet.com
-  ServerName press.braineet.com
-  ServerAlias presse.braineet.com
-  DocumentRoot "/var/www/press/"
-      <Directory "/var/www/press">
-          Options Indexes FollowSymLinks
-          AllowOverride All
-      </Directory>
-  RewriteEngine on
-</VirtualHost>
+    return (lookup);
+}
 
-<VirtualHost *:80>
-  ServerAdmin pierre.gourlaouen@braineet.com
-  ServerName developers.braineet.com
-  DocumentRoot "/var/www/developers/"
-      <Directory "/var/www/developers">
-          Options Indexes FollowSymLinks
-          AllowOverride All
-      </Directory>
-  RewriteEngine on
-</VirtualHost>
+sub vcl_backend_response {
 
-<VirtualHost *:80>
-  ServerAdmin pierre.gourlaouen@braineet.com
-  ServerName widgets.braineet.com
-  DocumentRoot "/var/www/widgets/"
-      <Directory "/var/www/widgets">
-          Options Indexes FollowSymLinks
-          AllowOverride All
-      </Directory>
-  RewriteEngine on
-</VirtualHost>
+    # Happens after we have read the response headers from the backend.
+    #
+    # Here you clean the response headers, removing silly Set-cookie headers
+    # and other mistakes your backend does.
+        if (beresp.http.Surrogate-Control ~ "ESI/1.0") {
+        unset beresp.http.Surrogate-Control;
+        set beresp.do_esi = true;
+    }
+        unset beresp.http.Vary;
+    return(deliver);
+}
 
-<VirtualHost *:80>
-  ServerAdmin pierre.gourlaouen@braineet.com
-  ServerName api.braineet.com
-  DocumentRoot "/var/www/api/web/"
-      <Directory "/var/www/api/web">
-          Options Indexes FollowSymLinks
-          AllowOverride All
-      </Directory>
-  RewriteEngine on
-</VirtualHost>
-
-<VirtualHost *:80>
-  ServerAdmin pierre.gourlaouen@braineet.com
-  ServerName direct.braineet.com
-  DocumentRoot "/var/www/api/web/"
-      <Directory "/var/www/api/web">
-          Options Indexes FollowSymLinks
-          AllowOverride All
-      </Directory>
-  RewriteEngine on
-</VirtualHost>
-
-<VirtualHost *:80>
- ServerAdmin pierre.gourlaouen@braineet.com
- DocumentRoot "/var/www/api/web/"
- <Directory "/var/www/api/web/">
-  AllowOverride All
- </Directory>
- ServerName admin.braineet.com
-</VirtualHost>
-
-
-<VirtualHost *:80>
-   ServerName m.braineet.com
- ServerAlias mobile.braineet.com
-
- DocumentRoot /var/www/mobile/
-
- ErrorLog ${APACHE_LOG_DIR}/mobile.braineet_error.log
- LogLevel warn
- CustomLog ${APACHE_LOG_DIR}/mobile.braineet_access.log combined
-</VirtualHost>
-
-<VirtualHost *:80>
- ServerAdmin pierre.gourlaouen@braineet.com
- DocumentRoot "/var/www/platform/"
- <Directory "/var/www/platform/">
-  AllowOverride All
- </Directory>
- ServerName platform.braineet.com
- ServerAlias *.braineet.com
-</VirtualHost>
+sub vcl_deliver {
+    # Happens when we have all the pieces we need, and are about to send the
+    # response to the client.
+    #
+    # You can do accounting or modifying the final object here.
+}
