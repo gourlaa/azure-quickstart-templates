@@ -1,0 +1,21 @@
+# This file is auto-generated during the composer install
+parameters:
+    database_driver: pdo_mysql
+    database_host: 10.0.3.6
+    database_port: 3306
+    database_name: braineet_prod
+    database_user: pierre
+    database_password: piter1428
+    mailer_transport: smtp
+    mailer_host: smtp.mandrillapp.com
+    mailer_user: pierre.gourlaouen@braineet.com
+    mailer_password: Fe4646cYtFbIQpqzvNhdUw
+    mailer_port: 587
+    locale: en
+    secret: fd757044bf65787ff5e5e946fd1078452
+    amazon_aws_key: AKIAJ55O4KLHMDMRVZ3A
+    amazon_aws_secret_key: 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
+    amazon_aws_region: eu-west-1
+    amazon_s3_base_url: static-braineet-com.s3-website-eu-west-1.amazonaws.com/
+    amazon_s3_bucket_name: static-braineet-com
+    stripe_token: sk_live_smLFrU6hIDdfjcDqkTxeHJAh
